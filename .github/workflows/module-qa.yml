@@ -1,0 +1,102 @@
+name: ModuleQuality
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go Version'
+        required: false
+        default: '1.20.4'
+        type: string
+
+jobs:
+  module-info:
+    uses: ./.github/workflows/module-info.yml
+
+  test:
+    needs:
+    - module-info
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v3
+      
+    - name: setup go ${{ needs.module-info.outputs.goVersion }}
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ needs.module-info.outputs.goVersion }}
+
+    - name: go test
+      run: go test -v -coverprofile=profile.cov ./...
+
+    - name: upload profile.cov
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverprofile
+        path: profile.cov
+
+    - name: send coverage to coveralls
+      uses: shogo82148/actions-goveralls@v1
+      with:
+        path-to-profile: profile.cov
+
+
+  lint:
+    needs:
+    - module-info
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v3
+
+    - name: setup go ${{ needs.module-info.outputs.goVersion }}
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ needs.module-info.outputs.goVersion }}
+
+    - name: lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+
+  sonarcloud:
+    needs:
+      - module-info
+      - test
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+    - name: download profile.cov
+      uses: actions/download-artifact@v3
+      with:
+        name: coverprofile
+
+    - name: create sonar-project.properties
+      run: |
+        cat << EOF >> sonar-project.properties
+        sonar.organization=blugnu
+        sonar.projectKey=${{ needs.module-info.outputs.moduleKey }}
+        sonar.projectName=${{ needs.module-info.outputs.moduleName }}
+        sonar.projectVersion=${{ needs.module-info.outputs.gitVersion }}
+
+        sonar.go.coverage.reportPaths=profile.cov
+
+        sonar.language=go
+        sonar.sources=.
+        sonar.exclusions=**/*_test.go,**/vendor/**,.*/**
+
+        sonar.tests=.
+        sonar.test.inclusions=**/*_test.go
+        sonar.test.exclusions=**/vendor/**,.*/**
+        EOF
+
+        cat sonar-project.properties
+    - name: perform sonarcloud scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

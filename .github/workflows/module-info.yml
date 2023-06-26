@@ -1,0 +1,59 @@
+name: ModuleInfo
+
+on:
+  workflow_call:
+    outputs:
+      moduleKey:
+        value: ${{ jobs.module-info.outputs.moduleKey }}
+      moduleName:
+        value: ${{ jobs.module-info.outputs.moduleName }}
+      gitVersion:
+        value: ${{ jobs.module-info.outputs.gitVersion }}
+      goVersion:
+        value: ${{ jobs.module-info.outputs.goVersion }}
+
+jobs:
+  module-info:
+    outputs:
+      moduleKey: ${{ steps.info.outputs.moduleKey }}
+      moduleName: ${{ steps.info.outputs.moduleName }}
+      gitVersion: ${{ steps.info.outputs.gitVersion }}
+      goVersion: ${{ steps.info.outputs.goVersion }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # get tags and branches for gitversion
+
+    - name: setup gitversion
+      uses: gittools/actions/gitversion/setup@v0
+      with:
+        versionSpec: '5.x'
+    - name: execute gitversion
+      id:   gitversion # id to later be referenced
+      uses: gittools/actions/gitversion/execute@v0
+
+    - name: parse go.mod
+      id: info
+      run: |
+        # get go version from go.mod
+        gover=$(cat go.mod | grep ^go); gover=${gover##* }
+
+        # get module name from go.mod
+        module=$(cat go.mod | grep module); module=${module## }
+
+        # remove any /vN version suffix ...
+        while [[ $module == *[0-9] ]]; do module=${module%?}; done
+        if [[ $module == */v ]]; then module=${module%??}; fi
+
+        # .. and remove the github.com/ prefix,
+        # replacing '/' with ':' and converting to lowercase for the key
+        name=$(echo ${module#*github.com/})
+        key=$(echo $name | tr '/' ':' | tr '[:upper:]' '[:lower:]')
+        gitver=$(echo ${{ steps.gitversion.outputs.semVer }} | tr '[:upper:]' '[:lower:]')
+
+        echo "moduleName=$name" >> $GITHUB_OUTPUT
+        echo "moduleKey=$key" >> $GITHUB_OUTPUT
+        echo "gitVersion=$gitver" >> $GITHUB_OUTPUT
+        echo "goVersion=$gover" >> $GITHUB_OUTPUT
