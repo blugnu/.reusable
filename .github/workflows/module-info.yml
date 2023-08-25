@@ -41,7 +41,7 @@ jobs:
         gover=$(cat go.mod | grep ^go); gover=${gover##* }
 
         # get module name from go.mod
-        module=$(cat go.mod | grep module); module=${module## }
+        module=$(cat go.mod | grep module -m 1); module=${module## }
 
         # remove any /vN version suffix ...
         while [[ $module == *[0-9] ]]; do module=${module%?}; done
