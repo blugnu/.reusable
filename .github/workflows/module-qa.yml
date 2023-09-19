@@ -2,67 +2,89 @@ name: ModuleQuality
 
 on:
   workflow_call:
-    inputs:
-      go-version:
-        description: 'Go Version'
-        required: false
-        default: '1.20.4'
-        type: string
+    outputs:
+      moduleName:
+        value: ${{ jobs.module-info.outputs.moduleName }}
+      serviceName:
+        value: ${{ jobs.module-info.outputs.serviceName }}
+      ingressPath:
+        value: ${{ jobs.module-info.outputs.ingressPath }}
+      gitVersion:
+        value: ${{ jobs.module-info.outputs.gitVersion }}
+      goVersion:
+        value: ${{ jobs.module-info.outputs.goVersion }}
 
 jobs:
   module-info:
     uses: ./.github/workflows/module-info.yml
 
-  test:
+  repo-visibility:
+    runs-on: ubuntu-latest
+    outputs:
+      isPublic: ${{ steps.visibility.outputs.is_public }}
+    steps:
+      - uses: credfeto/action-repo-visibility@v1.2.0
+        id: visibility
+
+  qa:
+    if: ${{ (github.ref != 'refs/heads/master' ) || (needs.repo-visibility.outputs.isPublic =='true') }}
     needs:
-    - module-info
+      - module-info
+      - repo-visibility
+    outputs:
+      gitVersion: ${{ needs.module-info.outputs.gitVersion }}
+      isPublic: ${{ needs.repo-visibility.outputs.isPublic }}
+      moduleName: ${{ needs.module-info.outputs.moduleName }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      
+      - name: 'setup: go ${{ needs.module-info.outputs.goVersion }}'
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ needs.module-info.outputs.goVersion }}
+        
+      - name: 'go: lint'
+        if: ${{ github.ref != 'refs/heads/master' }}
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+
+      - name: 'go: test'
+        run: go mod download && go test -v -coverprofile=profile.cov ./...
+
+      - name: 'upload: profile.cov'
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverprofile
+          path: profile.cov
+
+  coveralls:
+    if: ${{ (github.ref != 'refs/heads/master') && (needs.qa.outputs.isPublic =='true') }}
+    needs:
+      - qa
     runs-on: ubuntu-latest
     steps:
     - name: checkout
       uses: actions/checkout@v3
-      
-    - name: setup go ${{ needs.module-info.outputs.goVersion }}
-      uses: actions/setup-go@v3
       with:
-        go-version: ${{ needs.module-info.outputs.goVersion }}
+        fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
-    - name: go test
-      run: go test -v -coverprofile=profile.cov ./...
-
-    - name: upload profile.cov
-      uses: actions/upload-artifact@v3
+    - name: download profile.cov
+      uses: actions/download-artifact@v3
       with:
         name: coverprofile
-        path: profile.cov
 
     - name: send coverage to coveralls
       uses: shogo82148/actions-goveralls@v1
       with:
         path-to-profile: profile.cov
 
-
-  lint:
-    needs:
-    - module-info
-    runs-on: ubuntu-latest
-    steps:
-    - name: checkout
-      uses: actions/checkout@v3
-
-    - name: setup go ${{ needs.module-info.outputs.goVersion }}
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ needs.module-info.outputs.goVersion }}
-
-    - name: lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
-
   sonarcloud:
+    if: ${{ needs.qa.outputs.isPublic =='true' }}
     needs:
-      - module-info
-      - test
+      - qa
     runs-on: ubuntu-latest
     steps:
     - name: checkout
@@ -77,11 +99,18 @@ jobs:
 
     - name: create sonar-project.properties
       run: |
+        # remove the github.com/ prefix from the module name, replace
+        # '/' with ':' and convert to lowercase to derive a project
+        # key for SonarCloud
+        moduleName="${{ needs.qa.outputs.moduleName }}"
+        key=$(echo ${moduleName#*github.com/})
+        key=$(echo $key | tr '/' ':' | tr '[:upper:]' '[:lower:]')
+
         cat << EOF >> sonar-project.properties
         sonar.organization=blugnu
-        sonar.projectKey=${{ needs.module-info.outputs.moduleKey }}
-        sonar.projectName=${{ needs.module-info.outputs.moduleName }}
-        sonar.projectVersion=${{ needs.module-info.outputs.gitVersion }}
+        sonar.projectKey=$key
+        sonar.projectName=${{ needs.qa.outputs.moduleName }}
+        sonar.projectVersion=${{ needs.qa.outputs.gitVersion }}
 
         sonar.go.coverage.reportPaths=profile.cov
 
@@ -95,6 +124,7 @@ jobs:
         EOF
 
         cat sonar-project.properties
+
     - name: perform sonarcloud scan
       uses: SonarSource/sonarcloud-github-action@master
       env:
