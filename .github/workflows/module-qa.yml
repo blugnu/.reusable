@@ -71,12 +71,12 @@ jobs:
       with:
         fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
-    - name: download profile.cov
+    - name: 'download: profile.cov'
       uses: actions/download-artifact@v3
       with:
         name: coverprofile
 
-    - name: send coverage to coveralls
+    - name: 'coveralls: send coverage'
       uses: shogo82148/actions-goveralls@v1
       with:
         path-to-profile: profile.cov
@@ -92,12 +92,12 @@ jobs:
       with:
         fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
-    - name: download profile.cov
+    - name: 'download: profile.cov'
       uses: actions/download-artifact@v3
       with:
         name: coverprofile
 
-    - name: create sonar-project.properties
+    - name: 'sonarcloud: sonar-project.properties'
       run: |
         # remove the github.com/ prefix from the module name, replace
         # '/' with ':' and convert to lowercase to derive a project
@@ -125,7 +125,7 @@ jobs:
 
         cat sonar-project.properties
 
-    - name: perform sonarcloud scan
+    - name: 'sonarcloud: scan'
       uses: SonarSource/sonarcloud-github-action@master
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any

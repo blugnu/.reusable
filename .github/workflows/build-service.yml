@@ -1,5 +1,4 @@
 name: BuildService
-
 on:
   workflow_call:
     outputs:
@@ -41,40 +40,19 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 'docker: extract metadata'
+    - name: 'docker: metadata'
       id: meta
       uses: docker/metadata-action@v4
       with:
         images: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}
 
-    - name: 'docker: build'
+    - name: 'docker: build and push'
       uses: docker/build-push-action@v4
       with:
         context: .
         file: .cicd/dockerfile
-        provenance: false # not currently supported by ghcr.io
+        provenance: false # not currently supported by ghcr.io (creates spurious additional package versions)
         push: true
         tags: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}:${{ needs.qa.outputs.gitVersion }}
         labels: ${{ steps.meta.outputs.labels }}
 
-  cleanup:
-    runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/master' }}
-    needs:
-    - build
-    steps:
-    - name: 'ghcr: prune'
-      uses: vlaurin/action-ghcr-prune@v0.5.0
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        organization: ${{ github.repository_owner }}
-        container: ${{ needs.build.outputs.serviceName }}
-        prune-untagged: true
-        keep-tags-regexes:
-          ^${{ needs.build.outputs.gitVersion }}$
-        prune-tags-regexes:
-          ^${{ needs.build.outputs.gitVersion }}-.*$
-        # keep-tags-regexes:
-        #   ^[0-9]+.[0-9]+.[0-9]+$
-        # prune-tags-regexes:
-        #   ^[0-9]+.[0-9]+.[0-9]+-.*$

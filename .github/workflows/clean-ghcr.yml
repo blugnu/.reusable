@@ -1,0 +1,26 @@
+name: CleanContainerRegistry
+on:
+  workflow_call:
+    inputs:
+      container:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+jobs:
+  prune-ghcr:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/master' }}
+    steps:
+    - name: 'ghcr: prune'
+      uses: vlaurin/action-ghcr-prune@v0.5.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        organization: ${{ github.repository_owner }}
+        container: ${{ inputs.container }}
+        prune-untagged: true
+        keep-tags-regexes:
+          ^${{ inputs.version }}$
+        prune-tags-regexes:
+          ^${{ inputs.version }}-.*$

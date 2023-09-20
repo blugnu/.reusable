@@ -34,11 +34,11 @@ jobs:
       with:
         fetch-depth: 0  # get tags and branches for gitversion
 
-    - name: setup gitversion
+    - name: 'setup: gitversion'
       uses: gittools/actions/gitversion/setup@v0
       with:
         versionSpec: '5.x'
-    - name: execute gitversion
+    - name: 'gitversion: execute'
       id:   gitversion # id to later be referenced
       uses: gittools/actions/gitversion/execute@v0
 
@@ -76,7 +76,7 @@ jobs:
         # get ingress path from go.mod
         ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:};
         
-        gitver=$(echo ${{ steps.gitversion.outputs.semVer }} | tr '[:upper:]' '[:lower:]')
+        gitver=$(echo "${{ steps.gitversion.outputs.majorMinorPatch }}-${{ steps.gitversion.outputs.preReleaseLabel }}" | tr '[:upper:]' '[:lower:]')
 
         echo "serviceName=$service" >> $GITHUB_OUTPUT
         echo "ingressPath=$ingress" >> $GITHUB_OUTPUT
