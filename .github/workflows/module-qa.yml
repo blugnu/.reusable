@@ -20,22 +20,50 @@ jobs:
   repo-visibility:
     runs-on: ubuntu-latest
     outputs:
-      isPublic: ${{ steps.visibility.outputs.is_public }}
+      isPublic: ${{ steps.visibility.outputs.isPublic }}
     steps:
-      - uses: credfeto/action-repo-visibility@v1.2.0
+      - name: 'github: repo visibility'
         id: visibility
+        run: |
+          OUTPUT=$(curl --header "Authorization: token ${{ github.token }}" https://api.github.com/repos/${{ github.repository }})
+          echo "::group::api result"
+            echo "$OUTPUT"
+          echo "::endgroup::"
+
+          case $(echo $OUTPUT | jq ".private") in
+            false) isPublic=true
+            ;;
+            
+            true) isPublic=false
+            ;;
+            
+            *) echo "::error::unable to get repository info:$(echo $OUTPUT | jq '.message')"
+            exit -1
+            ;;
+          esac
+          echo "isPublic=$isPublic" >> $GITHUB_OUTPUT
+
+          echo "::group::outputs"
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"
 
   qa:
-    if: ${{ (github.ref != 'refs/heads/master' ) || (needs.repo-visibility.outputs.isPublic =='true') }}
+    if: ${{ (github.ref != 'refs/heads/master' ) || (needs.repo-visibility.outputs.isPublic == 'true' ) }}
     needs:
       - module-info
       - repo-visibility
     outputs:
-      gitVersion: ${{ needs.module-info.outputs.gitVersion }}
+      version: ${{ needs.module-info.outputs.version }}
       isPublic: ${{ needs.repo-visibility.outputs.isPublic }}
       moduleName: ${{ needs.module-info.outputs.moduleName }}
     runs-on: ubuntu-latest
     steps:
+      - run: |
+          echo "moduleName : ${{ needs.module-info.outputs.moduleName }}"
+          echo "version    : ${{ needs.module-info.outputs.version }}"
+          echo "isPublic   : ${{ needs.repo-visibility.outputs.isPublic }}"
+        name: 'is public'
+
       - name: checkout
         uses: actions/checkout@v3
       
@@ -60,7 +88,7 @@ jobs:
           path: profile.cov
 
   coveralls:
-    if: ${{ (github.ref != 'refs/heads/master') && (needs.qa.outputs.isPublic =='true') }}
+    if: ${{ (github.ref != 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') }}
     needs:
       - qa
     runs-on: ubuntu-latest
@@ -81,7 +109,7 @@ jobs:
         path-to-profile: profile.cov
 
   sonarcloud:
-    if: ${{ needs.qa.outputs.isPublic =='true' }}
+    if: ${{ needs.qa.outputs.isPublic == 'true' }}
     needs:
       - qa
     runs-on: ubuntu-latest
@@ -98,18 +126,21 @@ jobs:
 
     - name: 'sonarcloud: sonar-project.properties'
       run: |
-        # remove the github.com/ prefix from the module name, replace
-        # '/' with ':' and convert to lowercase to derive a project
-        # key for SonarCloud
+        # project name:
+        #  - module name with github.com/blugnu prefix removed
+        # project key:
+        #  - module name with github.com/ removed
+        #  - '/' replaced with ':'
+        #  - all lowercase
         moduleName="${{ needs.qa.outputs.moduleName }}"
-        key=$(echo ${moduleName#*github.com/})
-        key=$(echo $key | tr '/' ':' | tr '[:upper:]' '[:lower:]')
+        name=$(echo ${moduleName#*github.com/blugnu})
+        key=$(echo ${moduleName#*github.com/} | tr '/' ':' | tr '[:upper:]' '[:lower:]')
 
         cat << EOF >> sonar-project.properties
         sonar.organization=blugnu
+        sonar.projectName=$name
         sonar.projectKey=$key
-        sonar.projectName=${{ needs.qa.outputs.moduleName }}
-        sonar.projectVersion=${{ needs.qa.outputs.gitVersion }}
+        sonar.projectVersion=${{ needs.qa.outputs.version }}
 
         sonar.go.coverage.reportPaths=profile.cov
 
