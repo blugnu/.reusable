@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       path:
-        description: 'path to go.mod (if not in root))'
+        description: 'path to go.mod'
         type: string
-        required: false
+        default: '.'
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
@@ -23,10 +23,10 @@ jobs:
   module-info:
     outputs:
       moduleName: ${{ steps.info.outputs.moduleName }}
+      goVersion: ${{ steps.info.outputs.goVersion }}
+      gitVersion: ${{ steps.info.outputs.gitVersion }}
       serviceName: ${{ steps.info.outputs.serviceName }}
       ingressPath: ${{ steps.info.outputs.ingressPath }}
-      gitVersion: ${{ steps.info.outputs.gitVersion }}
-      goVersion: ${{ steps.info.outputs.goVersion }}
     runs-on: ubuntu-latest
     steps:
     - name: checkout
@@ -44,27 +44,34 @@ jobs:
 
     - name: 'go.mod: parse'
       id: info
+      shell: bash --noprofile --norc {0}
       run: |
-        modfile="go.mod"
-        [[ ! -z "${{ inputs.path }}" ]] && modfile="${{ inputs.path }}/go.mod"
+        modfile="${{ inputs.path }}/go.mod"
+        if [[ ! -f $modfile ]]; then
+          echo "::error::$modfile does not exist"
+          exit -1
+        fi
 
         mod=$(cat $modfile)
-
+        echo "::group::$modfile"
+          echo "$mod"
+        echo "::endgroup::"
+        
         # get module name from go.mod
         module=$(echo "$mod" | grep -E "^module " -m 1); module=${module##* }; module=${module%% *}
         
         # remove any /vNN version suffix ...
         if [[ ! -z $(echo "$module" | grep -E "^.*/v[0-9]+$") ]]; then
           while [[ ! -z $(echo "$module" | grep -E "^.*/v[0-9]+$") ]]; do module=${module%?}; done
-          module=${module%??};
+          module=${module%??}
         fi
-
+        
         # get go version from go.mod
         gover=$(echo "$mod" | grep -E "^go "); gover=${gover##* }; gover=${gover%% *}
-
+        
         # get service name from go.mod
-        service=$(echo "$mod" | grep -E "^//service:name:" -m 1); service=${service##*:};
-
+        service=$(echo "$mod" | grep -E "^//service:name:" -m 1); service=${service##*:}
+        
         # if the service name is not explicitly set but a //service comment is
         # present then use the module name as the service name (without host.tld/ prefix)
         if [[ -z $service && ! -z $(echo "$mod" | grep -E "^//service[\s]*$") ]]; then
@@ -74,12 +81,20 @@ jobs:
         service=${service%% *}
         
         # get ingress path from go.mod
-        ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:};
+        ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:}
         
         gitver=$(echo "${{ steps.gitversion.outputs.majorMinorPatch }}-${{ steps.gitversion.outputs.preReleaseLabel }}" | tr '[:upper:]' '[:lower:]')
+        
+        echo "::group::results/outputs"
+          echo "moduleName  : $module"
+          echo "goVersion   : $gover"
+          echo "gitVersion  : $gitver"
+          echo "serviceName : $service"
+          echo "ingressPath : $ingress"
 
-        echo "serviceName=$service" >> $GITHUB_OUTPUT
-        echo "ingressPath=$ingress" >> $GITHUB_OUTPUT
-        echo "moduleName=$name" >> $GITHUB_OUTPUT
-        echo "gitVersion=$gitver" >> $GITHUB_OUTPUT
-        echo "goVersion=$gover" >> $GITHUB_OUTPUT
+          echo "moduleName=$module" >> $GITHUB_OUTPUT
+          echo "goVersion=$gover" >> $GITHUB_OUTPUT
+          echo "gitVersion=$gitver" >> $GITHUB_OUTPUT
+          echo "serviceName=$service" >> $GITHUB_OUTPUT
+          echo "ingressPath=$ingress" >> $GITHUB_OUTPUT
+        echo "::endgroup::"
