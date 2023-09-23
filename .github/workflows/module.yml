@@ -1,0 +1,19 @@
+name: ModulePipeline
+on:
+  workflow_call:
+    outputs:
+      moduleName:
+        value: ${{ jobs.module-qa.outputs.moduleName }}
+      version:
+        value: ${{ jobs.module-qa.outputs.version }}
+      goVersion:
+        value: ${{ jobs.module-qa.outputs.goVersion }}
+
+jobs:
+  module-qa:
+    uses: ./.github/workflows/module-qa.yml
+    outputs:
+      moduleName: ${{ steps.module-qa.outputs.moduleName }}
+      version: ${{ steps.module-qa.outputs.version }}
+      goVersion: ${{ steps.module-qa.outputs.goVersion }}
+        

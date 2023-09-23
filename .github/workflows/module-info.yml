@@ -10,21 +10,21 @@ on:
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
+      version:
+        value: ${{ jobs.module-info.outputs.version }}
+      goVersion:
+        value: ${{ jobs.module-info.outputs.goVersion }}
       serviceName:
         value: ${{ jobs.module-info.outputs.serviceName }}
       ingressPath:
         value: ${{ jobs.module-info.outputs.ingressPath }}
-      gitVersion:
-        value: ${{ jobs.module-info.outputs.gitVersion }}
-      goVersion:
-        value: ${{ jobs.module-info.outputs.goVersion }}
 
 jobs:
   module-info:
     outputs:
       moduleName: ${{ steps.info.outputs.moduleName }}
+      version: ${{ steps.info.outputs.version }}
       goVersion: ${{ steps.info.outputs.goVersion }}
-      gitVersion: ${{ steps.info.outputs.gitVersion }}
       serviceName: ${{ steps.info.outputs.serviceName }}
       ingressPath: ${{ steps.info.outputs.ingressPath }}
     runs-on: ubuntu-latest
@@ -83,18 +83,18 @@ jobs:
         # get ingress path from go.mod
         ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:}
         
-        gitver=$(echo "${{ steps.gitversion.outputs.majorMinorPatch }}-${{ steps.gitversion.outputs.preReleaseLabel }}" | tr '[:upper:]' '[:lower:]')
+        semver=$(echo "${{ steps.gitversion.outputs.majorMinorPatch }}-${{ steps.gitversion.outputs.preReleaseLabel }}" | tr '[:upper:]' '[:lower:]')
         
         echo "::group::results/outputs"
           echo "moduleName  : $module"
+          echo "version     : $semver"
           echo "goVersion   : $gover"
-          echo "gitVersion  : $gitver"
           echo "serviceName : $service"
           echo "ingressPath : $ingress"
 
           echo "moduleName=$module" >> $GITHUB_OUTPUT
+          echo "version=$semver" >> $GITHUB_OUTPUT
           echo "goVersion=$gover" >> $GITHUB_OUTPUT
-          echo "gitVersion=$gitver" >> $GITHUB_OUTPUT
           echo "serviceName=$service" >> $GITHUB_OUTPUT
           echo "ingressPath=$ingress" >> $GITHUB_OUTPUT
         echo "::endgroup::"

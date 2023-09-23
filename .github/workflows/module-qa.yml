@@ -1,18 +1,17 @@
 name: ModuleQuality
-
 on:
   workflow_call:
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
+      version:
+        value: ${{ jobs.module-info.outputs.version }}
+      goVersion:
+        value: ${{ jobs.module-info.outputs.goVersion }}
       serviceName:
         value: ${{ jobs.module-info.outputs.serviceName }}
       ingressPath:
         value: ${{ jobs.module-info.outputs.ingressPath }}
-      gitVersion:
-        value: ${{ jobs.module-info.outputs.gitVersion }}
-      goVersion:
-        value: ${{ jobs.module-info.outputs.goVersion }}
 
 jobs:
   module-info:
