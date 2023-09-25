@@ -1,0 +1,100 @@
+name: GitLogAnalysis
+on:
+  workflow_call:
+    outputs:
+      releasecomment:
+        value: ${{ jobs.gitlog.outputs.releaseComment }}
+jobs:
+  gitlog:
+    runs-on: ubuntu-latest
+    outputs:
+      releaseComment: ${{ steps.gitlog.outputs.releaseComment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # required to have a log to analyse          
+
+      - name: 'gitlog: release comment'
+        id: gitlog
+        shell: bash --noprofile --norc {0}
+        run: |
+          # script to extract release comment from git log
+          
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            tag=$(git describe --tags --abbrev=0 2>&1)
+            if [[ "$tag" =~ "No names found" ]]; then
+              echo "using complete log (no tags)"
+              log=$(git log)
+            else
+              echo "using log since $tag"
+              log=$(git log $tag..HEAD)
+
+              if [[ -z log ]]; then
+                echo "::warning::refs/heads/master is already tagged ($tag)"
+                exit 0
+              fi
+            fi
+          else
+            echo "using ${{ github.ref }} branch log"
+            log=$(git log origin/master..HEAD)
+          fi
+
+          bumps=$(echo "$log" | grep -E "+semver:(major|minor|patch|init)" -c)
+          case $bumps in
+            #TODO: allow 0 +semver commits in an initial development branch (i.e. no current tags), with warning
+            0)  echo "::error::no +semver in commit log"
+                echo -e "Add a commit containing \`+semver:major|minor|patch|init\` comment to determine the version increment applied to the next release and supply a comment for the release tag.\n" >> $GITHUB_STEP_SUMMARY
+                echo -e "\n" >> $GITHUB_STEP_SUMMARY
+                echo -e "> _\`+semver:init\` should **only** be used in an initial development branch to create a 0.1.0 release_\n" >> $GITHUB_STEP_SUMMARY
+                exit 1
+            ;;
+            
+            1) # processing continues below
+            ;;
+            
+            *) echo "::error::multiple +semver commit messages found ($bumps)"
+               echo -e "Rewrite the commit history to ensure only one +semver increment is present for the release of this branch.\n" >> $GITHUB_STEP_SUMMARY
+               exit 1
+            ;;
+          esac
+          
+          raw=$(echo "$log" | grep -A 10 "+semver:" | grep -B 10 -E "^commit [a-f0-9]{40}.*$")
+          if [[ -z $raw ]]; then
+            echo "identified +semver in initial commit message"
+            raw=$(echo "$log" | grep -A 10 "+semver:")
+          else
+            echo "identified +semver in commit message"
+            raw=$(echo "$raw" | grep -v -E "^commit [a-f0-9]{40}.*$")
+          fi
+          # remove the +semver line and any blank lines
+          raw=$(echo "$raw" | grep -v "+semver:" | grep -v -E "^[\s]*$")
+
+          if [[ -z $raw ]]; then
+            echo "identified +semver has no comment: using preceding commit message"
+            raw=$(echo "$log" | grep -B 6 "+semver:" | grep -v "+semver:" | grep -A 6 -E "^Date:" | grep -v -E "^Date:")
+          fi
+
+          echo "::group::log"
+            echo "$log"
+          echo "::endgroup::"         
+
+          releaseComment=""
+          if [[ ! -z "$raw" ]]; then
+            echo "::group::comment (raw)"
+              echo "$raw"
+            echo "::endgroup::"
+            while read line; do
+              [[ ! -z $releaseComment ]] && releaseComment+=" "
+              releaseComment+="$line"
+            done <<< $raw
+          fi
+          echo "releaseComment=$releaseComment" >> $GITHUB_OUTPUT
+
+          echo "::group::outputs"
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+          if [[ -z $releaseComment ]]; then
+            echo "::warning::no release comment was identified"
+            echo -e "A release description will need to be added manually\n" >> $GITHUB_STEP_SUMMARY
+          fi

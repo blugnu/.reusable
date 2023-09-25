@@ -1,19 +1,45 @@
 name: ModulePipeline
 on:
   workflow_call:
-    outputs:
-      moduleName:
-        value: ${{ jobs.module-qa.outputs.moduleName }}
-      version:
-        value: ${{ jobs.module-qa.outputs.version }}
-      goVersion:
-        value: ${{ jobs.module-qa.outputs.goVersion }}
-
+   
 jobs:
   module-qa:
     uses: ./.github/workflows/module-qa.yml
-    outputs:
-      moduleName: ${{ steps.module-qa.outputs.moduleName }}
-      version: ${{ steps.module-qa.outputs.version }}
-      goVersion: ${{ steps.module-qa.outputs.goVersion }}
-        
+    secrets: inherit
+
+  release-tag:
+    runs-on: ubuntu-latest
+    needs:
+      - module-qa
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # create/preview annotated tag
+      - name: 'git: create tag v${{ needs.module-qa.outputs.version }}'
+        run: |
+          # script to create/preview the git tag when merged
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            git config --local user.name "${{ github.actor }}"
+
+            if [[ ! -z "${{ needs.module-qa.outputs.releaseComment }}" ]]; then
+              releaseComment="-m \"${{ needs.module-qa.outputs.releaseComment }}\""
+            fi
+            git tag -a "v${{ needs.module-qa.outputs.version }}" $releaseComment
+            git push origin "v${{ needs.module-qa.outputs.version }}"
+
+            releaseComment="${{ needs.module-qa.outputs.releaseComment }}"
+            releaseLink="https://github.com/${{ github.repository_owner}}/${{ github.repository }}/releases/edit/v${{ needs.module-qa.outputs.version }}"
+            [[ -z $releaseComment ]] && releaseComment="_<no description>_"
+            
+            echo -e "### :octocat: v${{ needs.module-qa.outputs.version }} / $releaseComment\n" >> $GITHUB_STEP_SUMMARY
+            echo -e "\n---\n[_edit release_]($releaseLink)\n" >> $GITHUB_STEP_SUMMARY
+            
+            exit 0
+          fi
+
+          version="${{ needs.module-qa.outputs.version }}"
+          releaseVersion="v${version%-*}"
+          echo -e "### :crystal_ball: Release Preview\n> _this release will be created/if when this branch (**${{ github.ref_name }}**) is merged_\n" >> $GITHUB_STEP_SUMMARY
+          echo -e "### $releaseVersion / ${{ needs.module-qa.outputs.releaseComment }}\n" >> $GITHUB_STEP_SUMMARY

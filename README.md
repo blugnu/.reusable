@@ -1,3 +1,3 @@
 # .reusable
 
-Provides reusable workflows used by `blugnu` projects
+Provides reusable workflows for used by `blugnu` projects and any other go projects that find them useful.
