@@ -1,4 +1,4 @@
-name: ModuleQuality
+name: ModuleQualityAssurance
 on:
   workflow_call:
     outputs:
@@ -6,14 +6,21 @@ on:
         value: ${{ jobs.module-info.outputs.moduleName }}
       version:
         value: ${{ jobs.module-info.outputs.version }}
+      releaseComment:
+        value: ${{ jobs.gitlog.outputs.releaseComment }}
       goVersion:
         value: ${{ jobs.module-info.outputs.goVersion }}
       serviceName:
         value: ${{ jobs.module-info.outputs.serviceName }}
       ingressPath:
         value: ${{ jobs.module-info.outputs.ingressPath }}
-
+      isPublic:
+        value: ${{ jobs.repo-visibility.outputs.isPublic }}
+  
 jobs:
+  gitlog:
+    uses: ./.github/workflows/gitlog.yml
+            
   module-info:
     uses: ./.github/workflows/module-info.yml
 
@@ -58,14 +65,8 @@ jobs:
       moduleName: ${{ needs.module-info.outputs.moduleName }}
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          echo "moduleName : ${{ needs.module-info.outputs.moduleName }}"
-          echo "version    : ${{ needs.module-info.outputs.version }}"
-          echo "isPublic   : ${{ needs.repo-visibility.outputs.isPublic }}"
-        name: 'is public'
-
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: 'setup: go ${{ needs.module-info.outputs.goVersion }}'
         uses: actions/setup-go@v3
@@ -88,25 +89,24 @@ jobs:
           path: profile.cov
 
   coveralls:
-    if: ${{ (github.ref != 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') }}
+    if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') }}
     needs:
       - qa
     runs-on: ubuntu-latest
     steps:
-    - name: checkout
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: 'download: profile.cov'
-      uses: actions/download-artifact@v3
-      with:
-        name: coverprofile
+      - name: 'download: profile.cov'
+        uses: actions/download-artifact@v3
+        with:
+          name: coverprofile
 
-    - name: 'coveralls: send coverage'
-      uses: shogo82148/actions-goveralls@v1
-      with:
-        path-to-profile: profile.cov
+      - name: 'coveralls: send coverage'
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: profile.cov
 
   sonarcloud:
     if: ${{ needs.qa.outputs.isPublic == 'true' }}
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
