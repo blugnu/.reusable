@@ -12,34 +12,41 @@ jobs:
     needs:
       - module-qa
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout
+        if: ${{ github.ref == 'refs/heads/master' }}
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # create/preview annotated tag
-      - name: 'git: create tag v${{ needs.module-qa.outputs.version }}'
-        run: |
-          # script to create/preview the git tag when merged
-          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            git config --local user.name "${{ github.actor }}"
+      - name: 'github: create release v${{ needs.module-qa.outputs.version }}'
+        if: ${{ (github.ref == 'refs/heads/master') && (needs.module-qa.outputs.isTagged == 'false') }}
+        uses: ncipollo/release-action@v1
+        with:
+          commit: master
+          tag: 'v${{ needs.module-qa.outputs.version }}'
+          body: '${{ needs.module-qa.outputs.releaseComment }}'
 
-            if [[ ! -z "${{ needs.module-qa.outputs.releaseComment }}" ]]; then
-              releaseComment="-m \"${{ needs.module-qa.outputs.releaseComment }}\""
+      - name: 'github: release summary'
+        run: |
+          # script to add details of the release to the job summary
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            releaseLink="https://github.com/${{ github.repository }}/releases/edit/v${{ needs.module-qa.outputs.version }}"
+
+            if [[ "${{ needs.module-qa.outputs.isTagged }}" == "true" ]]; then
+              echo -e ":warning:&emsp;a release was not created\n" >> $GITHUB_STEP_SUMMARY
+              echo -e "a tag for v${{ needs.module-qa.outputs.version }} already exists; [click here to edit the release]($releaseLink)(if one exists)\n" >> $GITHUB_STEP_SUMMARY
+              exit 0
             fi
-            git tag -a "v${{ needs.module-qa.outputs.version }}" $releaseComment
-            git push origin "v${{ needs.module-qa.outputs.version }}"
 
             releaseComment="${{ needs.module-qa.outputs.releaseComment }}"
-            releaseLink="https://github.com/${{ github.repository_owner}}/${{ github.repository }}/releases/edit/v${{ needs.module-qa.outputs.version }}"
             [[ -z $releaseComment ]] && releaseComment="_<no description>_"
             
             echo -e "### :octocat: v${{ needs.module-qa.outputs.version }} / $releaseComment\n" >> $GITHUB_STEP_SUMMARY
             echo -e "\n---\n[_edit release_]($releaseLink)\n" >> $GITHUB_STEP_SUMMARY
-            
             exit 0
           fi
 
           version="${{ needs.module-qa.outputs.version }}"
           releaseVersion="v${version%-*}"
-          echo -e "### :crystal_ball: Release Preview\n> _this release will be created/if when this branch (**${{ github.ref_name }}**) is merged_\n" >> $GITHUB_STEP_SUMMARY
+          echo -e "### :crystal_ball: Release Preview\n> _the following release will be created when this branch is merged_\n" >> $GITHUB_STEP_SUMMARY
           echo -e "### $releaseVersion / ${{ needs.module-qa.outputs.releaseComment }}\n" >> $GITHUB_STEP_SUMMARY

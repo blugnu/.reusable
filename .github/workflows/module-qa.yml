@@ -6,6 +6,8 @@ on:
         value: ${{ jobs.module-info.outputs.moduleName }}
       version:
         value: ${{ jobs.module-info.outputs.version }}
+      isTagged:
+        value: ${{ jobs.gitlog.outputs.isTagged }}
       releaseComment:
         value: ${{ jobs.gitlog.outputs.releaseComment }}
       goVersion:
