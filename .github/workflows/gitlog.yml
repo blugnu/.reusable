@@ -2,12 +2,15 @@ name: GitLogAnalysis
 on:
   workflow_call:
     outputs:
+      isTagged:
+        value: ${{ jobs.gitlog.outputs.isTagged }}
       releasecomment:
         value: ${{ jobs.gitlog.outputs.releaseComment }}
 jobs:
   gitlog:
     runs-on: ubuntu-latest
     outputs:
+      isTagged: ${{ steps.gitlog.outputs.isTagged }}
       releaseComment: ${{ steps.gitlog.outputs.releaseComment }}
     steps:
       - uses: actions/checkout@v4
@@ -25,12 +28,19 @@ jobs:
             if [[ "$tag" =~ "No names found" ]]; then
               echo "using complete log (no tags)"
               log=$(git log)
+            elif [[ "$tag" =~ "fatal" ]]; then
+              echo "::error::refs/master/HEAD has no tag; has a commit been force-pushed to master?"
+              exit -1
             else
               echo "using log since $tag"
               log=$(git log $tag..HEAD)
 
-              if [[ -z log ]]; then
+              if [[ -z $log ]]; then
                 echo "::warning::refs/heads/master is already tagged ($tag)"
+                echo "isTagged=true" >> $GITHUB_OUTPUT
+                echo "::group::outputs"
+                  cat $GITHUB_OUTPUT
+                echo "::endgroup::"
                 exit 0
               fi
             fi
@@ -88,6 +98,7 @@ jobs:
               releaseComment+="$line"
             done <<< $raw
           fi
+          echo "isTagged=false" >> $GITHUB_OUTPUT
           echo "releaseComment=$releaseComment" >> $GITHUB_OUTPUT
 
           echo "::group::outputs"

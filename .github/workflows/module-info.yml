@@ -83,7 +83,9 @@ jobs:
         # get ingress path from go.mod
         ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:}
         
-        semver=$(echo "${{ steps.gitversion.outputs.majorMinorPatch }}-${{ steps.gitversion.outputs.preReleaseLabel }}" | tr '[:upper:]' '[:lower:]')
+        semver="${{ steps.gitversion.outputs.majorMinorPatch }}"
+        [[ ! -z "${{ steps.gitversion.outputs.preReleaseLabel }}" ]] && semver+="-${{ steps.gitversion.outputs.preReleaseLabel }}"
+        semver=$(echo "$semver" | tr '[:upper:]' '[:lower:]')
         
         echo "::group::results/outputs"
           echo "moduleName  : $module"
