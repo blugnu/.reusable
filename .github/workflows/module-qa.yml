@@ -82,13 +82,13 @@ jobs:
           version: latest
 
       - name: 'go: test'
-        run: go mod download && go test -v -coverprofile=profile.cov ./...
+        run: go mod download && go test -v -coverprofile=coverprofile ./...
 
-      - name: 'upload: profile.cov'
+      - name: 'artifact: upload [coverprofile]'
         uses: actions/upload-artifact@v3
         with:
           name: coverprofile
-          path: profile.cov
+          path: coverprofile
 
   coveralls:
     if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') }}
@@ -100,7 +100,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 'download: profile.cov'
+      - name: 'artifact: download [coverprofile]'
         uses: actions/download-artifact@v3
         with:
           name: coverprofile
@@ -108,57 +108,14 @@ jobs:
       - name: 'coveralls: send coverage'
         uses: shogo82148/actions-goveralls@v1
         with:
-          path-to-profile: profile.cov
+          path-to-profile: coverprofile
 
   sonarcloud:
     if: ${{ needs.qa.outputs.isPublic == 'true' }}
     needs:
       - qa
-    runs-on: ubuntu-latest
-    steps:
-    - name: checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-
-    - name: 'download: profile.cov'
-      uses: actions/download-artifact@v3
-      with:
-        name: coverprofile
-
-    - name: 'sonarcloud: sonar-project.properties'
-      run: |
-        # project name:
-        #  - module name with github.com/blugnu prefix removed
-        # project key:
-        #  - module name with github.com/ removed
-        #  - '/' replaced with ':'
-        #  - all lowercase
-        moduleName="${{ needs.qa.outputs.moduleName }}"
-        name=$(echo ${moduleName#*github.com/blugnu})
-        key=$(echo ${moduleName#*github.com/} | tr '/' ':' | tr '[:upper:]' '[:lower:]')
-
-        cat << EOF >> sonar-project.properties
-        sonar.organization=blugnu
-        sonar.projectName=$name
-        sonar.projectKey=$key
-        sonar.projectVersion=${{ needs.qa.outputs.version }}
-
-        sonar.go.coverage.reportPaths=profile.cov
-
-        sonar.language=go
-        sonar.sources=.
-        sonar.exclusions=**/*_test.go,**/vendor/**,.*/**
-
-        sonar.tests=.
-        sonar.test.inclusions=**/*_test.go
-        sonar.test.exclusions=**/vendor/**,.*/**
-        EOF
-
-        cat sonar-project.properties
-
-    - name: 'sonarcloud: scan'
-      uses: SonarSource/sonarcloud-github-action@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    uses: ./.github/workflows/sonarcloud.yml
+    with:
+      moduleName: ${{ needs.qa.outputs.moduleName }}
+      moduleVersion: ${{ needs.qa.outputs.version }}
+    secrets: inherit

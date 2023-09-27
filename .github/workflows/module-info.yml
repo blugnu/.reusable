@@ -46,9 +46,11 @@ jobs:
       id: info
       shell: bash --noprofile --norc {0}
       run: |
+        # a script to extract build information from ${{ inputs.path }}/go.mod
+
         modfile="${{ inputs.path }}/go.mod"
-        if [[ ! -f $modfile ]]; then
-          echo "::error::$modfile does not exist"
+        if [[ ! -f "$modfile" ]]; then
+          echo "::error::file does not exist ($modfile)"
           exit -1
         fi
 
