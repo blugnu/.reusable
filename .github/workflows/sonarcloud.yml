@@ -1,0 +1,65 @@
+name: SonarCloudAnalysis
+on:
+  workflow_call:
+    inputs:
+      moduleName:
+        description: 'module name'
+        type: string
+      moduleVersion:
+        description: 'module version'
+        type: string
+
+jobs:
+  sonarcloud:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'artifact: download [coverprofile]'
+        uses: actions/download-artifact@v3
+        with:
+          name: coverprofile
+
+      - name: 'sonarcloud: sonar-project.properties'
+        run: |
+          # a script that creates a sonar-project.properties file
+          
+          # project name:
+          #  - module name with github.com/ prefix removed
+          # project key:
+          #  - project name with '/' replaced with ':'
+          #  - all lowercase
+          moduleName="${{ inputs.moduleName }}"
+
+          name=${moduleName#*github.com/${{ github.repository_owner }}/}
+          key=$(echo "${{ github.repository_owner }}:$name" | tr '[:upper:]' '[:lower:]')
+
+          cat << EOF >> sonar-project.properties
+          sonar.organization=${{ github.repository_owner }}
+          sonar.projectName=$name
+          sonar.projectKey=$key
+          sonar.projectVersion=${{ inputs.moduleVersion }}
+
+          sonar.go.coverage.reportPaths=coverprofile
+
+          sonar.language=go
+          sonar.sources=.
+          sonar.exclusions=**/*_test.go,**/vendor/**,.*/**
+
+          sonar.tests=.
+          sonar.test.inclusions=**/*_test.go
+          sonar.test.exclusions=**/vendor/**,.*/**
+          EOF
+
+          echo "::group::sonar-project.properties"
+            cat sonar-project.properties
+          echo "::endgroup::"
+
+      - name: 'sonarcloud: scan'
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
