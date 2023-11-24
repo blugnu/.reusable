@@ -74,6 +74,7 @@ jobs:
             raw=$(echo "$log" | grep -A 10 "+semver:")
           else
             echo "identified +semver in commit message"
+            raw=$(echo "$raw" | grep -B 10 -m 1 -E "^commit [a-f0-9]{40}.*$")
             raw=$(echo "$raw" | grep -v -E "^commit [a-f0-9]{40}.*$")
           fi
           # remove the +semver line and any blank lines
