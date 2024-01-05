@@ -1,7 +1,8 @@
 repo_name: blugnu/.reusable
-report_id: b3aacadf524eaab216d476d52eb6d085
+report_id: 0ecc2b84d0508a6161d79ae74aad7c08
+version: 0.1
 repo_type: Public
-timestamp: '2023-12-14T10:09:09+00:00'
+timestamp: '2024-01-05T09:00:59+00:00'
 requested_by: deltics
 provider: github
 branch: master
@@ -15,6 +16,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Version Control System
   image_url: https://img.stackshare.io/service/1046/git.png
+  detection_source_url: https://github.com/blugnu/.reusable
   detection_source: Repo Metadata
 - name: GitHub Actions
   description: Automate your workflow from idea to production
@@ -24,6 +26,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Continuous Integration
   image_url: https://img.stackshare.io/service/11563/actions.png
+  detection_source_url: https://github.com/blugnu/.reusable/blob/master/.github/workflows/build-service.yml
   detection_source: ".github/workflows/build-service.yml"
   last_updated_by: Jolyon Direnko-Smith
   last_updated_on: 2023-09-25 00:06:27.000000000 Z
