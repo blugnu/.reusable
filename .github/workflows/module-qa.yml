@@ -74,6 +74,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.module-info.outputs.goVersion }}
+          cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
         
       - name: 'go: lint'
         if: ${{ github.ref != 'refs/heads/master' }}
