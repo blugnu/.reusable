@@ -83,13 +83,29 @@ jobs:
           version: latest
 
       - name: 'go: test'
-        run: go mod download && go test -v -coverprofile=coverprofile ./...
-
+        run: |
+          go mod download && go test -v -coverprofile=coverprofile ./... -json > test-run.json
+          
       - name: 'artifact: upload [coverprofile]'
         uses: actions/upload-artifact@v4
         with:
           name: coverprofile
           path: coverprofile
+        
+      - name: 'go: test-report'
+        run: |
+          go install github.com/blugnu/test-report
+          
+          if [[ ! -z "$(test-report | grep \"command not found\")" ]]; then
+            echo "::warning::test-report could not be installed; skipping test report"
+            exit 0
+          fi
+
+          cat test-run.json | test-report --title "Test Report"
+
+          # add test report to the job summary
+          report=$(cat test-report.md)
+          echo -e "$report\n" >> $GITHUB_STEP_SUMMARY
 
   coveralls:
     if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') }}

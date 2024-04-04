@@ -41,7 +41,7 @@ jobs:
             releaseComment="${{ needs.module-qa.outputs.releaseComment }}"
             [[ -z $releaseComment ]] && releaseComment="_<no description>_"
             
-            echo -e "### :octocat: v${{ needs.module-qa.outputs.version }} / $releaseComment\n" >> $GITHUB_STEP_SUMMARY
+            echo -e "### :octocat: v${{ needs.module-qa.outputs.version }} &nbsp;&nbsp; $releaseComment\n" >> $GITHUB_STEP_SUMMARY
             echo -e "\n---\n[_edit release_]($releaseLink)\n" >> $GITHUB_STEP_SUMMARY
             exit 0
           fi
@@ -49,4 +49,4 @@ jobs:
           version="${{ needs.module-qa.outputs.version }}"
           releaseVersion="v${version%-*}"
           echo -e "### :crystal_ball: Release Preview\n> _the following release will be created when this branch is merged_\n" >> $GITHUB_STEP_SUMMARY
-          echo -e "### $releaseVersion / ${{ needs.module-qa.outputs.releaseComment }}\n" >> $GITHUB_STEP_SUMMARY
+          echo -e "### $releaseVersion &nbsp;&nbsp; ${{ needs.module-qa.outputs.releaseComment }}\n" >> $GITHUB_STEP_SUMMARY

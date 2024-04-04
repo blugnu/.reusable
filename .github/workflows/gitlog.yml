@@ -30,9 +30,9 @@ jobs:
               log=$(git log)
             elif [[ "$tag" =~ "fatal" ]]; then
               echo "::error::refs/master/HEAD has no tag; has a commit been force-pushed to master?"
-              exit -1
+              exit 1
             else
-              echo "using log since $tag"
+              echo "using 'git log $tag..HEAD'"
               log=$(git log $tag..HEAD)
 
               if [[ -z $log ]]; then
@@ -45,9 +45,17 @@ jobs:
               fi
             fi
           else
-            echo "using ${{ github.ref }} branch log"
-            log=$(git log origin/master..HEAD)
+            echo "using 'git log'"
+            log=$(git log)
           fi
+
+          echo "::group::log"
+            echo "$log"
+          echo "::endgroup::"         
+
+          #TODO: support a +semver :label to indicate a non-release version, e.g. `+semver:patch:cicd` >> `vM.N+1.P-cicd`
+          # this would be used to comply with the +semver requirement in a PR that does not include any changes
+          # to code, e.g. a pipeline or documentation update, etc
 
           bumps=$(echo "$log" | grep -E "+semver:(major|minor|patch|init)" -c)
           case $bumps in
@@ -77,26 +85,38 @@ jobs:
             raw=$(echo "$raw" | grep -B 10 -m 1 -E "^commit [a-f0-9]{40}.*$")
             raw=$(echo "$raw" | grep -v -E "^commit [a-f0-9]{40}.*$")
           fi
-          # remove the +semver line and any blank lines
-          raw=$(echo "$raw" | grep -v "+semver:" | grep -v -E "^[\s]*$")
-
+          # remove the +semver line
+          raw=$(echo "$raw" | grep -v "+semver:")
+          
           if [[ -z $raw ]]; then
             echo "identified +semver has no comment: using preceding commit message"
-            raw=$(echo "$log" | grep -B 6 "+semver:" | grep -v "+semver:" | grep -A 6 -E "^Date:" | grep -v -E "^Date:")
+            
+            # look for the first "^Date: " line, starting 5 lines above the +semver line,
+            for ((L=5; L<20; L++)); do
+              raw=$(echo "$log" | grep -B $L "+semver:" | grep -v "+semver:" | grep -A $L -E "^Date:" | grep -v -E "^Date:")
+              if [[ ! -z $raw ]]; then
+                break
+              fi
+            done
+            # remove the first blank line (separating the Date: .... line from the commit message)
+            raw=$(echo "$raw" | awk '/^[\s]*$/ && i++ < 1 {next};1')
           fi
-
-          echo "::group::log"
-            echo "$log"
-          echo "::endgroup::"         
 
           releaseComment=""
           if [[ ! -z "$raw" ]]; then
             echo "::group::comment (raw)"
               echo "$raw"
             echo "::endgroup::"
+
             while read line; do
-              [[ ! -z $releaseComment ]] && releaseComment+=" "
-              releaseComment+="$line"
+              if [[ -z "$line" ]]; then
+                releaseComment+="<br><br>"
+                addSpace="no"
+              else
+                [[ ! -z $releaseComment && ("$addSpace"=="yes") ]] && releaseComment+=" "
+                releaseComment+="$line"
+                addSpace="yes"
+              fi
             done <<< $raw
           fi
           echo "isTagged=false" >> $GITHUB_OUTPUT
