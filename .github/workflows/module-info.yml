@@ -10,37 +10,29 @@ on:
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
-      version:
-        value: ${{ jobs.module-info.outputs.version }}
       goVersion:
         value: ${{ jobs.module-info.outputs.goVersion }}
       serviceName:
         value: ${{ jobs.module-info.outputs.serviceName }}
       ingressPath:
         value: ${{ jobs.module-info.outputs.ingressPath }}
+      usesGoReleaser:
+        value: ${{ jobs.module-info.outputs.usesGoReleaser }}
 
 jobs:
   module-info:
     outputs:
       moduleName: ${{ steps.info.outputs.moduleName }}
-      version: ${{ steps.info.outputs.version }}
       goVersion: ${{ steps.info.outputs.goVersion }}
       serviceName: ${{ steps.info.outputs.serviceName }}
       ingressPath: ${{ steps.info.outputs.ingressPath }}
+      usesGoReleaser: ${{ steps.info.outputs.usesGoReleaser }}
     runs-on: ubuntu-latest
     steps:
     - name: checkout
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # get tags and branches for gitversion
-
-    - name: 'setup: gitversion'
-      uses: gittools/actions/gitversion/setup@v0
-      with:
-        versionSpec: '5.x'
-    - name: 'gitversion: execute'
-      id:   gitversion # id to later be referenced
-      uses: gittools/actions/gitversion/execute@v0
 
     - name: 'go.mod: parse'
       id: info
@@ -84,21 +76,20 @@ jobs:
         
         # get ingress path from go.mod
         ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:}
-        
-        semver="${{ steps.gitversion.outputs.majorMinorPatch }}"
-        [[ ! -z "${{ steps.gitversion.outputs.preReleaseLabel }}" ]] && semver+="-${{ steps.gitversion.outputs.preReleaseLabel }}"
-        semver=$(echo "$semver" | tr '[:upper:]' '[:lower:]')
+
+        # check for presence of a .goreleaser.yml|yaml file
+        [[ -f .goreleaser.yml || -f .goreleaser.yaml ]] && usesGoReleaser="true"
         
         echo "::group::results/outputs"
           echo "moduleName  : $module"
-          echo "version     : $semver"
           echo "goVersion   : $gover"
           echo "serviceName : $service"
           echo "ingressPath : $ingress"
+          echo "usesGoReleaser: $usesGoReleaser"
 
           echo "moduleName=$module" >> $GITHUB_OUTPUT
-          echo "version=$semver" >> $GITHUB_OUTPUT
           echo "goVersion=$gover" >> $GITHUB_OUTPUT
           echo "serviceName=$service" >> $GITHUB_OUTPUT
           echo "ingressPath=$ingress" >> $GITHUB_OUTPUT
+          echo "usesGoReleaser=$usesGoReleaser" >> $GITHUB_OUTPUT
         echo "::endgroup::"

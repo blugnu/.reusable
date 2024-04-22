@@ -1,0 +1,138 @@
+name: GitLog
+on:
+  workflow_call:
+    # If the HEAD commit is tagged with a semver version then semver will be
+    # that version and isTagged will be true.
+    #
+    # If the HEAD commit is not tagged or is tagged with some tag that is not a
+    # semver version, then isTagged will be false and semver will be the next
+    # semantic version based on the conventional commits in the log since the
+    # most recent semver tag.
+    outputs:
+      semver:
+        value: ${{ jobs.gitlog.outputs.semver }}
+        description: "The semantic version of the HEAD commit or the next version based on conventional commits since the most recent semver tag"
+      isTagged:
+        value: ${{ jobs.gitlog.outputs.isTagged }}
+        description: "true if the semver output is an existing tag; false if the semver output is the next version, yet to be tagged"
+jobs:
+  gitlog:
+    runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.gitlog.outputs.semver }}
+      isTagged: ${{ steps.gitlog.outputs.isTagged }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # required to have a log to analyse          
+
+      - name: 'gitlog'
+        id: gitlog
+        shell: bash --noprofile --norc {0}
+        run: |
+          # script to identify the semantic version from conventional commits in the git log and preview the release change log
+
+          isTagged=false
+          semver=""
+          
+          tags=$(git tag --sort=-creatordate)
+          if [[ -z "$tags" ]]; then
+            if [[ ! -z $(git log origin/master..HEAD --oneline | grep "fatal:ambiguous argument 'origin/master..HEAD'") ]]; then
+              echo "::warning::${{ github.ref }} not parented on 'master'; did you forget to clone a non-empty master branch when initialising this repo?"
+            fi
+            cmd="git log"
+            tag=""
+          else
+            # get the most recent release semver tag
+            # and the log since that tag
+
+            tag=$(echo "$tags" | grep -m 1 -E "^[v]{0,1}(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+            cmd="git log $tag..HEAD"
+          fi
+          echo "cmd: $cmd"
+
+          log=$(eval $cmd --oneline)
+          echo "::group::log"
+            echo "$log"
+          echo "::endgroup::"
+
+          regex="^[v]{0,1}([0-9]+)\.([0-9]+)\.([0-9]+).*"
+          major=0; minor=0; patch=0
+          if [[ $tag =~ $regex ]]; then
+              major="${BASH_REMATCH[1]}"
+              minor="${BASH_REMATCH[2]}"
+              patch="${BASH_REMATCH[3]}"
+          fi
+
+          if [[ ! -z $log ]]; then
+            # determine the next semver based on
+            # any conventional commits in the log
+            
+            preamble="^[0-9a-fA-F]{7} \(.*\)"
+            badRefactorings=$(echo "log" | grep -E "$preamble (refactor!|refactor\(.*\)!): .*$" -c)
+            breaking=$(echo "$log" | grep -E " (feat!|feat\(.*\)!|fix!|fix\(.*\)!): .*$" -c)
+            fixes=$(echo "$log" | grep -E " (fix|\(.*\)): .*$" -c)
+            features=$(echo "$log" | grep -E " (feat|feat\(.*\)): .*$" -c)
+            refactorings=$(echo "$log" | grep -E " (refactor|refactor\(.*\)): .*$" -c)
+
+            if [[ $badRefactorings -gt 0 ]]; then
+              echo "::error::refactoring commits cannot be breaking changes; rewrite with a more appropriate commit type (feat!/fix!)"
+              exit 1
+            fi
+            #TODO: warn if there are any BREAKING CHANGE commits (recommend fix!/feature! as preferred)
+
+            semver="?"
+            if [[ $breaking -gt 0 ]]; then
+              major=$((major+1))
+              minor=0
+              patch=0
+            elif [[ $features -gt 0 ]]; then
+              minor=$((minor+1))
+              patch=0
+            elif [[ $fixes -gt 0 || refactorings -gt 0 ]]; then
+              patch=$((patch+1))
+            elif [[ ! -z $tag ]]; then
+              # no significant commits found and there is an existing release tag
+              isTagged=true
+            else
+              # no significant commits found and there is no existing release tag
+              # so this will be the initial release which, by convention is v0.1.0
+              isTagged=false
+              major=0; minor=1; patch=0
+            fi
+          fi
+          [[ "$semver" == "?" ]] && semver="v$major.$minor.$patch"
+          
+          # if not master add a semver label identifying the branch
+          # and emit an (approximate) preview of the release notes
+
+          branch="${{ github.ref }}"
+          branch=$(echo "$branch" | sed -E "s/refs\/heads\///")
+
+          if [[ "$branch" != "master" ]]; then
+            semver+="-$branch"
+
+            echo -e "### $semver\n" >> $GITHUB_STEP_SUMMARY
+            echo -e "> _:point_right: will be tagged as v$major.$minor.$patch when merged_\n" >> $GITHUB_STEP_SUMMARY
+            project="https://github.com/${{ github.repository }}"
+            changelog=""
+            regex="^([0-9a-f]{7}) (.+)$"
+            while read entry; do
+                if [[ ! $entry =~ $regex ]]; then
+                  continue
+                fi
+                sha="${BASH_REMATCH[1]}"
+                msg="${BASH_REMATCH[2]}"
+                changelog+="[<code>$sha</code>]($project/commit/$sha) $msg\n"
+            done <<< "$log"
+            
+            echo -e "### :clipboard: &nbsp;&nbsp; change log \n" >> $GITHUB_STEP_SUMMARY
+            echo -e "$changelog\n" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "semver=$semver" >> $GITHUB_OUTPUT
+          echo "isTagged=$isTagged" >> $GITHUB_OUTPUT
+
+          echo "::group::outputs"
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"

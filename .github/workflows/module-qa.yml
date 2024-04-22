@@ -4,25 +4,25 @@ on:
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
-      version:
-        value: ${{ jobs.module-info.outputs.version }}
-      isTagged:
-        value: ${{ jobs.gitlog.outputs.isTagged }}
-      releaseComment:
-        value: ${{ jobs.gitlog.outputs.releaseComment }}
       goVersion:
         value: ${{ jobs.module-info.outputs.goVersion }}
       serviceName:
         value: ${{ jobs.module-info.outputs.serviceName }}
       ingressPath:
         value: ${{ jobs.module-info.outputs.ingressPath }}
+      semver:
+        value: ${{ jobs.gitlog.outputs.semver }}
+      isTagged:
+        value: ${{ jobs.gitlog.outputs.isTagged }}
       isPublic:
         value: ${{ jobs.repo-visibility.outputs.isPublic }}
+      usesGoReleaser:
+        value: ${{ jobs.module-info.outputs.usesGoReleaser }}
   
 jobs:
   gitlog:
-    uses: ./.github/workflows/gitlog.yml
-            
+    uses: ./.github/workflows/git-log.yml
+
   module-info:
     uses: ./.github/workflows/module-info.yml
 
@@ -62,7 +62,6 @@ jobs:
       - module-info
       - repo-visibility
     outputs:
-      version: ${{ needs.module-info.outputs.version }}
       isPublic: ${{ needs.repo-visibility.outputs.isPublic }}
       moduleName: ${{ needs.module-info.outputs.moduleName }}
     runs-on: ubuntu-latest
@@ -94,9 +93,9 @@ jobs:
         
       - name: 'go: test-report'
         run: |
-          go install github.com/blugnu/test-report
+          go install github.com/blugnu/test-report@latest
           
-          if [[ ! -z "$(test-report | grep \"command not found\")" ]]; then
+          if [[ ! -z "$(which test-report | grep \"test-report not found\")" ]]; then
             echo "::warning::test-report could not be installed; skipping test report"
             exit 0
           fi
@@ -108,8 +107,9 @@ jobs:
           echo -e "$report\n" >> $GITHUB_STEP_SUMMARY
 
   coveralls:
-    if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') }}
+    if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') && (needs.gitlog.outputs.isTagged == 'false') }}
     needs:
+      - gitlog
       - qa
     runs-on: ubuntu-latest
     steps:
@@ -128,11 +128,12 @@ jobs:
           path-to-profile: coverprofile
 
   sonarcloud:
-    if: ${{ needs.qa.outputs.isPublic == 'true' }}
+    if: ${{ needs.qa.outputs.isPublic == 'true' && (needs.gitlog.outputs.isTagged == 'false') }}
     needs:
+      - gitlog
       - qa
     uses: ./.github/workflows/sonarcloud.yml
     with:
       moduleName: ${{ needs.qa.outputs.moduleName }}
-      moduleVersion: ${{ needs.qa.outputs.version }}
+      moduleVersion: ${{ needs.gitlog.outputs.semver }}
     secrets: inherit

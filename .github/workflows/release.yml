@@ -1,0 +1,62 @@
+name: Release
+on:
+  workflow_call:
+    inputs:
+      createRelease:
+        description: 'whether to create a release (true) or not (false); typically set false when executing on a non-release branch'
+        type: boolean
+        required: true
+      createTag:
+        description: 'whether to create a tag for the release (true) or use the latest tag (false); ignored if createRelease is false'
+        type: boolean
+        required: true
+      version:
+        description: 'the version to be tagged (if required) and released'
+        type: string
+        required: true
+  
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # check for presence of .goreleaser.yml
+      - name: 'release: check configuration'
+        id: config
+        run: |
+          if [[ -f .goreleaser.yml ]]; then
+            echo "::group::.goreleaser.yml"
+              cat .goreleaser.yml
+            echo "::endgroup::"
+            exit 0
+          fi
+
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "::error::no .goreleaser.yml"
+            exit 1
+          fi
+          
+          echo "::warning::no .goreleaser.yml"
+
+      # create a tag
+      - name: 'release: create tag'
+        if: ${{ inputs.CreateRelease && inputs.createTag }}
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ inputs.version }}
+          message: |
+            Release ${{ inputs.version }}
+            https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
+      
+      # create the release
+      - name: 'release: goreleaser'
+        if: ${{ inputs.CreateRelease }}
+        uses: goreleaser/goreleaser-action@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: release --clean ${{ steps.config.outputs.config }}

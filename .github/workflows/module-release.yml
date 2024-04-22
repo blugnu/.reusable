@@ -1,0 +1,17 @@
+name: ModulePipeline
+on:
+  workflow_call:
+   
+jobs:
+  module-qa:
+    uses: ./.github/workflows/module-qa.yml
+    secrets: inherit
+
+  release:
+    if: ${{ (github.ref == 'refs/heads/master') }}
+    needs:
+      - module-qa
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.module-qa.outputs.semver }}
+      createTag: ${{ needs.module-qa.outputs.isTagged == 'false' }}
