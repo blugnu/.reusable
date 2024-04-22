@@ -39,14 +39,18 @@ jobs:
                 echo "::warning::refs/heads/master is already tagged ($tag)"
                 echo "isTagged=true" >> $GITHUB_OUTPUT
                 echo "::group::outputs"
-                  cat $GITHUB_OUTPUT
+                cat $GITHUB_OUTPUT
                 echo "::endgroup::"
                 exit 0
               fi
             fi
           else
-            echo "using 'git log'"
-            log=$(git log)
+            echo "using 'git log origin/master..HEAD'"
+            log=$(git log origin/master..HEAD)
+            if [[ ! -z $(echo $log | grep "fatal:ambiguous argument 'origin/master..HEAD'") ]]; then
+              echo "::warning::${{ github.ref }} not parented on 'master'; did you forget to clone a non-empty master branch when initialising this repo?"
+              log=$(git log)
+            fi
           fi
 
           echo "::group::log"
