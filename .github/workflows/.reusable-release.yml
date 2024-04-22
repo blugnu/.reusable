@@ -1,0 +1,16 @@
+name: release pipeline
+on: push
+jobs:
+  gitlog:
+    uses: ./.github/workflows/git-log.yml
+    secrets: inherit
+
+  release:
+    if: ${{ github.ref == 'refs/heads/master' }}
+    uses:
+      ./.github/workflows/release.yml
+    needs:
+      - gitlog
+    with:
+      version: ${{ needs.gitlog.outputs.semver }}
+      createTag: ${{ needs.gitlog.outputs.isTagged == 'false' }}

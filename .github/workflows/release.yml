@@ -1,0 +1,57 @@
+name: Release
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'the version to be released (not required if createTag is false)'
+        type: string
+        required: false
+      createTag:
+        description: 'whether to create a tag for the release (true) or use the latest tag (false)'
+        type: boolean
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # create a tag
+      - name: 'release: create tag'
+        if: ${{ ( inputs.createTag == 'true') }}
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ inputs.version }}
+          message: |
+            Release ${{ inputs.version }}
+            https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
+      
+      # create default goreleaser config (if required)
+      - name: 'release: configuration'
+        run: |
+          if [[ ! -f .goreleaser.yml ]]; then
+            echo "::warning::no .goreleaser.yml found; using default configuration for a go module or non-go release"
+            cat << EOF > .goreleaser.yml
+            version: 1
+            builds:
+              - skip: true
+            changelog:
+              sort: asc
+            EOF
+          fi
+
+          echo "::group::.goreleaser.yml"
+            cat .goreleaser.yml
+          echo "::endgroup::"
+
+      # create the release
+      - name: 'release: goreleaser'
+        uses: goreleaser/goreleaser-action@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: release --clean
