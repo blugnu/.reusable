@@ -2,19 +2,69 @@
 
 Provides reusable workflows for used by `blugnu` projects and any other go projects that find them useful.
 
-To avoid changes in these workflows breaking the workflows of dependent projects it is recommended to use a release version tag ref in the project workflow:
+Callable workflows in this repository provide self-contained steps used to compose higher order workflows
+in dependent projects; alternatively, complete higher order `.reusable` workflows that are also provided
+for common use cases, such as Go module releases.
+
+To avoid workflows being broken by changes to `.reusable` workflows, it is recommended to pin workflows to
+a release version rather than `@master`:
 
 ```yml
 uses: blugnu/.reusable/.github/workflows/module-release.yml@v0.1.0
 ```
 
-Callable workflows provide self-contained steps used to compose higher order workflows in dependent projects, or via ready-to-use higher order `.reusable` workflows that are also provided.
+## Releases and Versioning
 
-## Examples
+- Releases are created using [GoReleaser](https://goreleaser.com/).
+- Versioning of releases is derived from [conventional commits](https://www.conventionalcommits.org) by
+the `git-log.yml` workflow.
 
-### Ex. 1 - A Go Module Repository
+### Releases: GoReleaser Configuration
 
-> The module repository uses the provided higher order `module-release.yml` callable workflow.  This provides a complete test and release workflow for a Go module.
+Workflows that create releases (whether using `release.yml` or the higher-order `module-release.yml` workflow) **MUST**
+provide a `.goreleaser.yml` configuration file in the root of the repository.
+
+For projects that do not ship binaries (e.g. Go modules) the following minimal configuration is sufficient:
+
+```yml
+# .goreleaser.yml
+version: 1
+builds:
+  skip: true
+```
+
+## Versioning: Conventional Commits
+
+Semantic versioning is derived from the git log of the current branch by applying a minimum interpretation of the
+[conventional commits](https://www.conventionalcommits.org) specification.
+
+Any commit type may be used, but only `fix`, `feat`, and `refactor` commits are considered significant for versioning.
+
+### Versioning Rules
+
+- one or more `fix` or `refactor` commit increments the patch version;
+- one or more `feat` commit increments the minor version and resets the patch version;
+- one or more `fix!` or `feat!` commit increments the major version and resets the minor and patch versions;
+
+Two exceptions to the conventional commits specification are enforced:
+
+- `BREAKING CHANGE` commits or footers are NOT allowed.
+- `refactor!` commits are NOT allowed.
+
+In both cases use a `fix!` or `feat!` commit instead.
+
+No more than one increment is applied; the version will be incremented by the highest significant commit type.
+e.g. a log comprised of `fix`, `feat`, and `refactor` commits will result in a single minor version increment
+and the patch version being set to zero.
+
+<hr>
+
+## Workflow Examples
+
+### A Go Module Repository
+
+> The module repository uses the provided higher order `module-release.yml` callable workflow.
+> This provides a complete test and release workflow for a Go module.
 
 ```yml
 # release.yml
@@ -22,13 +72,14 @@ name: release pipeline
 on: push
 jobs:
   release:
-    uses: blugnu/.reusable/.github/workflows/module-release.yml@v0.1.0
+    uses: blugnu/.reusable/.github/workflows/module-release.yml@v0.1.1
     secrets: inherit
 ```
 
-### Ex. 2 - A Non-Go Module Repository
+### A Non-Go Module Repository
 
-> `git-log.yml` is used to obtain a semantic version from the git log of the current branch and the `release.yml` workflow to create a tag and release (when merged to master).
+> `git-log.yml` is used to obtain a semantic version from the git log of the current branch and
+> the `release.yml` workflow to create a tag and release (when merged to master).
 
 ```yml
 # release.yml
@@ -36,16 +87,15 @@ name: release pipeline
 on: push
 jobs:
   gitlog:
-    uses: blugnu/.reusable/.github/workflows/git-log.yml@v0.1.0
+    uses: blugnu/.reusable/.github/workflows/git-log.yml@v0.1.1
     secrets: inherit
 
   release:
     if: ${{ github.ref == 'refs/heads/master' }}
-    uses: blugnu/.reusable/.github/workflows/release.yml@v0.1.0
+    uses: blugnu/.reusable/.github/workflows/release.yml@v0.1.1
     needs:
       - gitlog
     with:
       version: ${{ needs.gitlog.outputs.semver }}
       createTag: ${{ needs.gitlog.outputs.isTagged == 'false' }}
 ```
-

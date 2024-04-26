@@ -1,0 +1,4 @@
+{
+    "MD013": { "line_length": 200 }, // self-enforce to ~100; 200 allows for some tables
+    "MD033": false // allow inline HTML
+}
