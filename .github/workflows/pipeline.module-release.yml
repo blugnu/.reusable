@@ -1,16 +1,16 @@
-name: ModuleRelease
+name: pipeline.module-release
 on:
   workflow_call:
    
 jobs:
   module-qa:
-    uses: ./.github/workflows/module-qa.yml
+    uses: ./.github/workflows/job.module-qa.yml
     secrets: inherit
 
   release:
     needs:
       - module-qa
-    uses: ./.github/workflows/release.yml
+    uses: ./.github/workflows/job.release.yml
     with:
       version: ${{ needs.module-qa.outputs.semver }}
       createRelease: ${{ (github.ref == 'refs/heads/master') }}

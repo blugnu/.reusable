@@ -1,5 +1,4 @@
-name: ModuleInfo
-
+name: 'job: module info'
 on:
   workflow_call:
     inputs:

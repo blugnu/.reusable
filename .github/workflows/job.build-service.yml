@@ -1,4 +1,4 @@
-name: BuildService
+name: 'job: build service'
 on:
   workflow_call:
     outputs:
@@ -8,23 +8,23 @@ on:
         value: ${{ jobs.qa.outputs.ingressPath }}
       serviceName:
         value: ${{ jobs.qa.outputs.serviceName }}
-      gitVersion:
-        value: ${{ jobs.qa.outputs.version }}
+      version:
+        value: ${{ jobs.qa.outputs.semver }}
       goVersion:
         value: ${{ jobs.qa.outputs.goVersion }}
 
 jobs:
   qa:
-    uses: ./.github/workflows/module-qa.yml
+    uses: ./.github/workflows/job.module-qa.yml
     secrets: inherit
   
   build:
-    name: 'build ${{ needs.qa.outputs.version }}'
+    name: 'build ${{ needs.qa.outputs.semver }}'
     runs-on: ubuntu-latest
     needs:
     - qa
     outputs:
-      gitVersion: ${{ needs.qa.outputs.version }}
+      version: ${{ needs.qa.outputs.semver }}
       serviceName: ${{ needs.qa.outputs.serviceName }}
     steps:
     - name: checkout
@@ -53,6 +53,6 @@ jobs:
         file: .cicd/dockerfile
         provenance: false # not currently supported by ghcr.io (creates spurious additional package versions)
         push: true
-        tags: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}:${{ needs.qa.outputs.version }}
+        tags: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}:${{ needs.qa.outputs.semver }}
         labels: ${{ steps.meta.outputs.labels }}
 
