@@ -1,4 +1,4 @@
-name: ModulePipeline
+name: ModuleRelease
 on:
   workflow_call:
    
@@ -14,5 +14,5 @@ jobs:
     with:
       version: ${{ needs.module-qa.outputs.semver }}
       createRelease: ${{ (github.ref == 'refs/heads/master') }}
-      createTag: ${{ needs.module-qa.outputs.isTagged == 'false' }}
+      createTag: ${{ !fromJSON(needs.module-qa.outputs.isTagged) }}
     secrets: inherit
