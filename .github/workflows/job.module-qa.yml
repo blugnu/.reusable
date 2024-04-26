@@ -1,4 +1,4 @@
-name: ModuleQualityAssurance
+name: 'job: module qa'
 on:
   workflow_call:
     outputs:
@@ -21,10 +21,10 @@ on:
   
 jobs:
   gitlog:
-    uses: ./.github/workflows/git-log.yml
+    uses: ./.github/workflows/job.git-log.yml
 
   module-info:
-    uses: ./.github/workflows/module-info.yml
+    uses: ./.github/workflows/job.module-info.yml
 
   repo-visibility:
     runs-on: ubuntu-latest
@@ -133,7 +133,7 @@ jobs:
     needs:
       - gitlog
       - qa
-    uses: ./.github/workflows/sonarcloud.yml
+    uses: ./.github/workflows/job.sonarcloud.yml
     with:
       moduleName: ${{ needs.qa.outputs.moduleName }}
       moduleVersion: ${{ needs.gitlog.outputs.semver }}

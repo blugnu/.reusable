@@ -1,0 +1,15 @@
+name: 'pipeline: module-release'
+on:
+  workflow_call:
+jobs:
+  qa:
+    uses: ./.github/workflows/job.module-qa.yml
+    secrets: inherit
+
+  release:
+    needs: qa
+    uses: ./.github/workflows/job.release.yml
+    with:
+      version: ${{ needs.qa.outputs.semver }}
+      createRelease: ${{ (github.ref == 'refs/heads/master') }}
+      createTag: ${{ !fromJSON(needs.qa.outputs.isTagged) }}

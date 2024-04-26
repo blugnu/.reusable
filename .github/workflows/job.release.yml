@@ -1,4 +1,4 @@
-name: Release
+name: 'job: release'
 on:
   workflow_call:
     inputs:
@@ -36,9 +36,8 @@ jobs:
               exit 1
             fi
 
-            echo "::group::.goreleaser.yml"
-              cat .goreleaser.yml
-            echo "::endgroup::"
+            echo "found .goreleaser.yml:"
+            awk '{print "| "$0}' .goreleaser.yml
             exit 0
           fi
 

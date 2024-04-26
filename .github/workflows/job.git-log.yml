@@ -1,4 +1,4 @@
-name: GitLog
+name: 'job: git log'
 on:
   workflow_call:
     # If the HEAD commit is tagged with a semver version then semver will be

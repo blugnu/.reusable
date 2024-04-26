@@ -10,8 +10,22 @@ To avoid workflows being broken by changes to `.reusable` workflows, it is recom
 a release version rather than `@master`:
 
 ```yml
-uses: blugnu/.reusable/.github/workflows/module-release.yml@v0.1.0
+uses: blugnu/.reusable/.github/workflows/pipeline.module-release.yml@v0.2.0
 ```
+
+## Workflow Filenames
+
+Github Action workflow files are required to be placed in the `.github/workflows` folder; this applies to
+caller workflows in another repository as well as the called workflows in this repository. This creates two
+problems:
+
+1. workflows cannot be organised into folders for different types of workflow; and
+2. filename collisions may occur (_that is, a workflow file having the same filename as a workflow file
+   in the caller repository_).
+
+To address these problems `.reusable` workflow files are named with a prefix that indicates the type of
+workflow in the file (`job.` or `pipeline.`); this also reduces (_but does not entirely eliminate_) the
+possibility of filename collisions.
 
 ## Releases and Versioning
 
@@ -72,7 +86,7 @@ name: release pipeline
 on: push
 jobs:
   release:
-    uses: blugnu/.reusable/.github/workflows/module-release.yml@v0.1.1
+    uses: blugnu/.reusable/.github/workflows/pipeline.module-release.yml@v0.1.1
     secrets: inherit
 ```
 
@@ -87,12 +101,12 @@ name: release pipeline
 on: push
 jobs:
   gitlog:
-    uses: blugnu/.reusable/.github/workflows/git-log.yml@v0.1.1
+    uses: blugnu/.reusable/.github/workflows/job.git-log.yml@v0.2.0
     secrets: inherit
 
   release:
     if: ${{ github.ref == 'refs/heads/master' }}
-    uses: blugnu/.reusable/.github/workflows/release.yml@v0.1.1
+    uses: blugnu/.reusable/.github/workflows/job.release.yml@v0.2.0
     needs:
       - gitlog
     with:
