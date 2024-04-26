@@ -28,19 +28,22 @@ jobs:
       - name: 'release: check configuration'
         id: config
         run: |
+          # a script to check for the presence of a .goreleaser.yml file
+
           if [[ -f .goreleaser.yml ]]; then
+            if [[ -z "$(cat .goreleaser.yml)" ]]; then
+              echo "::error::.goreleaser.yml is empty"
+              exit 1
+            fi
+
             echo "::group::.goreleaser.yml"
               cat .goreleaser.yml
             echo "::endgroup::"
             exit 0
           fi
 
-          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            echo "::error::no .goreleaser.yml"
-            exit 1
-          fi
-          
-          echo "::warning::no .goreleaser.yml"
+          echo "::error::no .goreleaser.yml)"
+          exit 1
 
       # create a tag
       - name: 'release: create tag'
