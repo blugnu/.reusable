@@ -72,7 +72,8 @@ jobs:
       - name: 'setup: go ${{ needs.module-info.outputs.goVersion }}'
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ needs.module-info.outputs.goVersion }}
+          # go-version: ${{ needs.module-info.outputs.goVersion }}
+          go-version: 1.22 #TEMP: until workflows are updated to download and use test-report binaries
           cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
         
       - name: 'go: lint'
