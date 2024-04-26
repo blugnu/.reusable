@@ -71,7 +71,7 @@ jobs:
             preamble="^[0-9a-fA-F]{7} \(.*\)"
             badRefactorings=$(echo "log" | grep -E "$preamble (refactor!|refactor\(.*\)!): .*$" -c)
             breaking=$(echo "$log" | grep -E " (feat!|feat\(.*\)!|fix!|fix\(.*\)!): .*$" -c)
-            fixes=$(echo "$log" | grep -E " (fix|\(.*\)): .*$" -c)
+            fixes=$(echo "$log" | grep -E " (fix|fix\(.*\)): .*$" -c)
             features=$(echo "$log" | grep -E " (feat|feat\(.*\)): .*$" -c)
             refactorings=$(echo "$log" | grep -E " (refactor|refactor\(.*\)): .*$" -c)
 
