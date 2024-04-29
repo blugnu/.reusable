@@ -1,6 +1,12 @@
 name: 'job: module qa'
 on:
   workflow_call:
+    inputs:
+      testReportVersion:
+        description: 'The version of test-report to use'
+        type: string
+        required: false
+        default: 'latest'
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
@@ -72,8 +78,7 @@ jobs:
       - name: 'setup: go ${{ needs.module-info.outputs.goVersion }}'
         uses: actions/setup-go@v5
         with:
-          # go-version: ${{ needs.module-info.outputs.goVersion }}
-          go-version: 1.22 #TEMP: until workflows are updated to download and use test-report binaries
+          go-version: ${{ needs.module-info.outputs.goVersion }}
           cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
         
       - name: 'go: lint'
@@ -95,18 +100,38 @@ jobs:
         
       - name: 'go: test-report'
         run: |
-          go install github.com/blugnu/test-report@latest
-          
-          if [[ ! -z "$(which test-report | grep \"test-report not found\")" ]]; then
-            echo "::warning::test-report could not be installed; skipping test report"
-            exit 0
+          # a script to download and run blugnu/test-report
+
+          ver="${{ inputs.testReportVersion }}"
+          [[ "$ver" =~ "^v.*" ]] && ver="${ver:1}"
+          if [[ "$ver" == "latest" ]]; then
+            ver=$(curl -s https://api.github.com/repos/blugnu/test-report/releases/latest | jq -r '.tag_name' | cut -c 2-)
+            echo "downloading (latest): v$ver"
+          else
+            echo "downloading: v$ver"
           fi
 
-          cat test-run.json | test-report --title "Test Report"
+          # download test-report from blugnu/test-report/releases
+          curl -LO https://github.com/blugnu/test-report/releases/download/v${ver}/test-report_${ver}_linux_amd64.tar.gz
+          tar -xvzf test-report_${ver}_linux_amd64.tar.gz test-report
+          
+          if [[ ! -f "test-report" ]]; then
+            echo "::warning::test-report could not be installed; skipping test report"
+            exit 0
+          else
+            echo "::group::test-report version"
+              ./test-report version
+            echo "::endgroup::"
+          fi
+
+          cat test-run.json | ./test-report --title "Test Report"
 
           # add test report to the job summary
           report=$(cat test-report.md)
           echo -e "$report\n" >> $GITHUB_STEP_SUMMARY
+
+          # remove the test-report binary and downloaded tar.gz
+          rm test-report test-report_${ver}_linux_amd64.tar.gz
 
   coveralls:
     if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') && (needs.gitlog.outputs.isTagged == 'false') }}
