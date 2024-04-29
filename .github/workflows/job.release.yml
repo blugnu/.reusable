@@ -65,15 +65,15 @@ jobs:
             https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
 
       # install Go and download dependencies
-      - name: 'go: install ${{ inputs.goVersion }}'
-        if: ${{ inputs.goVersion != '' }}
+      - name: 'go: setup ${{ inputs.goVersion }}'
+        if: ${{ inputs.createRelease && (inputs.goVersion != '') }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.goVersion }}
           cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
     
       - name: 'go: mod download'
-        if: ${{ inputs.goVersion != '' }}
+        if: ${{ inputs.createRelease && (inputs.goVersion != '') }}
         run: go mod download
 
       # create the release
