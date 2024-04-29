@@ -13,3 +13,4 @@ jobs:
       version: ${{ needs.qa.outputs.semver }}
       createRelease: ${{ (github.ref == 'refs/heads/master') }}
       createTag: ${{ !fromJSON(needs.qa.outputs.isTagged) }}
+      goVersion: ${{ needs.qa.outputs.goVersion }}

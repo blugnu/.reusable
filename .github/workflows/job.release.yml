@@ -14,7 +14,10 @@ on:
         description: 'the version to be tagged (if required) and released'
         type: string
         required: true
-  
+      goVersion:
+        description: 'the version of Go to use (only required if the release produces go binaries)'
+        type: string
+        required: false
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -38,6 +41,13 @@ jobs:
 
             echo "found .goreleaser.yml:"
             awk '{print "| "$0}' .goreleaser.yml
+
+            echo "GO_VERSION=$(go version)" >> $GITHUB_OUTPUT
+
+            echo "::group::outputs"
+              cat $GITHUB_OUTPUT
+            echo "::endgroup::"            
+
             exit 0
           fi
 
@@ -53,12 +63,25 @@ jobs:
           message: |
             Release ${{ inputs.version }}
             https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
-      
+
+      # install Go and download dependencies
+      - name: 'go: install ${{ inputs.goVersion }}'
+        if: ${{ inputs.goVersion != '' }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.goVersion }}
+          cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
+    
+      - name: 'go: mod download'
+        if: ${{ inputs.goVersion != '' }}
+        run: go mod download
+
       # create the release
       - name: 'release: goreleaser'
         if: ${{ inputs.CreateRelease }}
         uses: goreleaser/goreleaser-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GO_VERSION: ${{ steps.config.outputs.GO_VERSION }}
         with:
           args: release --clean ${{ steps.config.outputs.config }}
