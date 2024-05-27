@@ -61,7 +61,7 @@ jobs:
 
       # create a tag
       - name: 'tag: create (annotated)'
-        if: ${{ inputs.CreateRelease && inputs.createTag && !inputs.lightweightTag}}
+        if: ${{ inputs.createRelease && inputs.createTag && !inputs.lightweightTag}}
         uses: rickstaa/action-create-tag@v1
         with:
           tag: ${{ inputs.version }}
@@ -70,7 +70,7 @@ jobs:
             https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
 
       - name: 'tag: create (lightweight)'
-        if: ${{ inputs.CreateRelease && inputs.createTag && inputs.lightweightTag}}
+        if: ${{ inputs.createRelease && inputs.createTag && inputs.lightweightTag}}
         uses: rickstaa/action-create-tag@v1
         with:
           tag: ${{ inputs.version }}

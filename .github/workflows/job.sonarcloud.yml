@@ -58,8 +58,14 @@ jobs:
             cat sonar-project.properties
           echo "::endgroup::"
 
-      - name: 'sonarcloud: scan'
-        uses: SonarSource/sonarcloud-github-action@master
+      - name: 'sonarcloud: analysis'
+        uses: sonarsource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: 'sonarcloud: quality gate'
+        uses: sonarsource/sonarqube-quality-gate-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
