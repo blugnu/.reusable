@@ -10,6 +10,11 @@ on:
         description: 'whether to create a tag for the release (true) or use the latest tag (false); ignored if createRelease is false'
         type: boolean
         required: true
+      lightweightTag:
+        description: 'whether to create a lightweight tag (true) or an annotated tag (false); ignored if createTag is false'
+        type: boolean
+        required: false
+        default: false
       version:
         description: 'the version to be tagged (if required) and released'
         type: string
@@ -55,14 +60,20 @@ jobs:
           exit 1
 
       # create a tag
-      - name: 'release: create tag'
-        if: ${{ inputs.CreateRelease && inputs.createTag }}
+      - name: 'tag: create (annotated)'
+        if: ${{ inputs.CreateRelease && inputs.createTag && !inputs.lightweightTag}}
         uses: rickstaa/action-create-tag@v1
         with:
           tag: ${{ inputs.version }}
           message: |
             Release ${{ inputs.version }}
             https://github.com/${{ github.repository }}/releases/tag/${{ inputs.version }}
+
+      - name: 'tag: create (lightweight)'
+        if: ${{ inputs.CreateRelease && inputs.createTag && inputs.lightweightTag}}
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ inputs.version }}
 
       # install Go and download dependencies
       - name: 'go: setup ${{ inputs.goVersion }}'
