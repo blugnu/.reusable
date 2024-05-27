@@ -14,4 +14,5 @@ jobs:
       version: ${{ needs.gitlog.outputs.semver }}
       createRelease: ${{ github.ref == 'refs/heads/master' }}
       createTag: ${{ !fromJSON(needs.gitlog.outputs.isTagged) }}
+      lightweightTag: true
     secrets: inherit
