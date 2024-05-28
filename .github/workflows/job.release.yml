@@ -71,9 +71,10 @@ jobs:
 
       - name: 'tag: create (lightweight)'
         if: ${{ inputs.createRelease && inputs.createTag && inputs.lightweightTag}}
-        uses: rickstaa/action-create-tag@v1
-        with:
-          tag: ${{ inputs.version }}
+        uses: hole19/git-tag-action@master
+        env:
+          TAG: ${{ inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # install Go and download dependencies
       - name: 'go: setup ${{ inputs.goVersion }}'
