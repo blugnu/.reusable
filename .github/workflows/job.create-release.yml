@@ -1,0 +1,104 @@
+name: 'job: create release'
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'the version to be released; a tag must already exist for this version'
+        type: string
+        required: true
+      goVersion:
+        description: 'the version of Go to use (only required if the release produces go binaries)'
+        type: string
+        required: false
+      dryRun:
+        description: 'if true then no release is created; typically set to true when executing on a non-release branch'
+        type: boolean
+        required: false
+        default: false
+jobs:
+  create:
+    if: ${{ !inputs.dryRun }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # check for presence of .goreleaser.yml
+      - name: 'release: check configuration'
+        id: config
+        run: |
+          # a script to check for the presence of a .goreleaser.yml file
+
+          if [[ -f .goreleaser.yml ]]; then
+            if [[ -z "$(cat .goreleaser.yml)" ]]; then
+              echo "::error::.goreleaser.yml is empty"
+              exit 1
+            fi
+
+            echo "found .goreleaser.yml:-"
+            awk '{print "| "$0}' .goreleaser.yml
+
+            echo "GO_VERSION=$(go version)" >> $GITHUB_OUTPUT
+
+            echo "::group::outputs"
+              cat $GITHUB_OUTPUT
+            echo "::endgroup::"            
+
+            exit 0
+          fi
+
+          echo "::error::no .goreleaser.yml"
+          exit 1
+
+      # install Go and download dependencies
+      - name: 'go: setup ${{ inputs.goVersion }}'
+        if: ${{ (inputs.goVersion != '') }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.goVersion }}
+          cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
+    
+      - name: 'go: mod download'
+        if: ${{ (inputs.goVersion != '') }}
+        run: go mod download
+
+      # create the release
+      - name: 'release: goreleaser'
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          args: release --clean ${{ steps.config.outputs.config }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GO_VERSION: ${{ steps.config.outputs.GO_VERSION }}
+
+  dry-run:
+    if: ${{ inputs.dryRun }}
+    runs-on: ubuntu-latest
+    name: 'dry run'
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'release: dry run'
+        run: |
+          # dry run
+          echo "this is a dry run; a release would otherwise be created with the following configuration:"
+          echo ""
+          echo "version: ${{ inputs.version }}"
+          if [[ -z "${{ inputs.goVersion }}" ]]; then
+            echo "go version: [none]"
+          else
+            echo "go version: ${{ inputs.goVersion }}"
+          fi
+          echo ""
+          echo ".goreleaser.yml:-"
+          if [[ -f .goreleaser.yml ]]; then
+            awk '{print "| "$0}' .goreleaser.yml
+          else
+            echo "::error::no .goreleaser.yml"
+            exit 1
+          fi

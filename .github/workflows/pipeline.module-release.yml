@@ -6,11 +6,23 @@ jobs:
     uses: ./.github/workflows/job.module-qa.yml
     secrets: inherit
 
+  tag:
+    if: ${{ !fromJSON(needs.qa.outputs.isTagged) }}
+    uses: ./.github/workflows/job.create-tag.yml
+    needs:
+      - qa
+    with:
+      label: ${{ needs.qa.outputs.semver }}
+      description: ${{ needs.qa.outputs.semver }}
+      lightweight: ${{ !fromJSON(needs.qa.outputs.isTagged) }}
+      dryRun: ${{ (github.ref != 'refs/heads/master') }}
+
   release:
-    needs: qa
-    uses: ./.github/workflows/job.release.yml
+    needs:
+      - qa
+      - tag
+    uses: ./.github/workflows/job.create-release.yml
     with:
       version: ${{ needs.qa.outputs.semver }}
-      createRelease: ${{ (github.ref == 'refs/heads/master') }}
-      createTag: ${{ !fromJSON(needs.qa.outputs.isTagged) }}
       goVersion: ${{ needs.qa.outputs.goVersion }}
+      dryRun: ${{ (github.ref != 'refs/heads/master') }}

@@ -1,4 +1,4 @@
-name: 'job: git log'
+name: 'job: git log analysis'
 on:
   workflow_call:
     # If the HEAD commit is tagged with a semver version then semver will be
@@ -10,13 +10,13 @@ on:
     # most recent semver tag.
     outputs:
       semver:
-        value: ${{ jobs.gitlog.outputs.semver }}
+        value: ${{ jobs.analysis.outputs.semver }}
         description: "The semantic version of the HEAD commit or the next version based on conventional commits since the most recent semver tag"
       isTagged:
-        value: ${{ jobs.gitlog.outputs.isTagged }}
+        value: ${{ jobs.analysis.outputs.isTagged }}
         description: "true if the semver output is an existing tag; false if the semver output is the next version, yet to be tagged"
 jobs:
-  gitlog:
+  analysis:
     runs-on: ubuntu-latest
     outputs:
       semver: ${{ steps.gitlog.outputs.semver }}

@@ -1,0 +1,68 @@
+name: 'job: create tag'
+on:
+  workflow_call:
+    inputs:
+      label:
+        description: 'the label to be used for the tag (typically a version, e.g. v1.1.0)'
+        type: string
+        required: true
+      description:
+        description: 'the description for the tag; ignored if lightweight is true'
+        type: string
+        required: false
+      lightweight:
+        description: 'whether to create a lightweight tag (true) or an annotated tag (false)'
+        type: boolean
+        required: false
+        default: false
+      dryRun:
+        description: 'if true then no tag is created; typically set to true when executing on a non-release branch'
+        type: boolean
+        required: false
+        default: false
+jobs:
+  create:
+    if: ${{ !inputs.dryRun }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'tag: annotated'
+        if: ${{ !inputs.lightweight && !inputs.dryRun }}
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ inputs.label }}
+          message: ${{ inputs.description }}
+
+      - name: 'tag: lightweight'
+        if: ${{ inputs.lightweight && !inputs.dryRun }}
+        uses: hole19/git-tag-action@master
+        env:
+          TAG: ${{ inputs.label }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dry-run:
+    if: ${{ inputs.dryRun }}
+    runs-on: ubuntu-latest
+    name: 'dry run'
+    steps:
+      - name: 'tag: preview'
+        run: |
+          # dry run
+          echo "this is a dry run; the following tag would otherwise be created:"
+          echo ""
+          if [[ "${{ inputs.lightweight }}" == "true" ]]; then
+              echo "lightweight tag: ${{ inputs.label }}"
+          else
+              echo "annotated tag: ${{ inputs.label }}"
+              if [[ -z "${{ inputs.description }}" ]]; then
+                  echo "description  : [none]"
+              else
+                  echo "description  :-"
+                  echo "${{ inputs.description }}"
+              fi
+          fi
+        

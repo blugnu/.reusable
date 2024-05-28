@@ -5,14 +5,25 @@ jobs:
     uses: ./.github/workflows/job.git-log.yml
     secrets: inherit
 
-  release:
-    uses:
-      ./.github/workflows/job.release.yml
+  tag:
+    if: ${{ !fromJSON(needs.gitlog.outputs.isTagged) }}
     needs:
       - gitlog
+    uses:
+      ./.github/workflows/job.create-tag.yml
+    with:
+      label: ${{ needs.gitlog.outputs.semver }}
+      lightweight: true
+      dryRun: ${{ (github.ref != 'refs/heads/master') }}
+    secrets: inherit
+
+  release:
+    uses:
+      ./.github/workflows/job.create-release.yml
+    needs:
+      - gitlog
+      - tag
     with:
       version: ${{ needs.gitlog.outputs.semver }}
-      createRelease: ${{ github.ref == 'refs/heads/master' }}
-      createTag: ${{ !fromJSON(needs.gitlog.outputs.isTagged) }}
-      lightweightTag: true
+      dryRun: ${{ (github.ref != 'refs/heads/master') }}
     secrets: inherit
