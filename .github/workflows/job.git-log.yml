@@ -17,6 +17,7 @@ on:
         description: "true if the semver output is an existing tag; false if the semver output is the next version, yet to be tagged"
 jobs:
   analysis:
+    name: 'git log analysis'
     runs-on: ubuntu-latest
     outputs:
       semver: ${{ steps.gitlog.outputs.semver }}
@@ -32,26 +33,24 @@ jobs:
         run: |
           # script to identify the semantic version from conventional commits in the git log and preview the release change log
 
-          isTagged=false
           semver=""
+          isTagged=false
           
           tags=$(git tag --sort=-creatordate)
           if [[ -z "$tags" ]]; then
+            # no previous tag; this is the initial release but we must also
+            # check that the repo was cloned with a non-empty master branch
+
             if [[ ! -z $(git log origin/master..HEAD --oneline | grep "fatal:ambiguous argument 'origin/master..HEAD'") ]]; then
               echo "::warning::${{ github.ref }} not parented on 'master'; did you forget to clone a non-empty master branch when initialising this repo?"
             fi
-            cmd="git log"
-            tag=""
+            log=$(git log --oneline)
           else
             # get the most recent release semver tag
             # and the log since that tag
-
             tag=$(echo "$tags" | grep -m 1 -E "^[v]{0,1}(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
-            cmd="git log $tag..HEAD"
+            log=$(git log $tag..HEAD --oneline)
           fi
-          echo "cmd: $cmd"
-
-          log=$(eval $cmd --oneline)
           echo "::group::log"
             echo "$log"
           echo "::endgroup::"
@@ -65,15 +64,15 @@ jobs:
           fi
 
           if [[ ! -z $log ]]; then
-            # determine the next semver based on
-            # any conventional commits in the log
+            # determine the next semver based on any conventional commits in the log
+            # --oneline log format is: xxxxxxx <commit type>[(<scope>)]: <message>
             
-            badRefactorings=$(echo "log" | grep -E " (refactor!|refactor\(.*\)!): .*$" -c)
-            breaking=$(echo "$log" | grep -E " (feat!|feat\(.*\)!|fix!|fix\(.*\)!): .*$" -c)
-            fixes=$(echo "$log" | grep -E " (fix|fix\(.*\)): .*$" -c)
-            features=$(echo "$log" | grep -E " (feat|feat\(.*\)): .*$" -c)
-            refactorings=$(echo "$log" | grep -E " (refactor|refactor\(.*\)): .*$" -c)
-            overrides=$(echo "$log" | grep -E " (ver|version): [v]{0,1}[0-9+]\.[0-9]+\.[0-9]+$" -c)
+            badRefactorings=$(echo "log" | grep -E "^[0-9a-f]{7} (refactor!|refactor\(.*\)!): .+" -c)
+            breaking=$(echo "$log"       | grep -E "^[0-9a-f]{7} (feat!|feat\(.*\)!|fix!|fix\(.*\)!): .+" -c)
+            fixes=$(echo "$log"          | grep -E "^[0-9a-f]{7} (fix|fix\(.*\)): .+" -c)
+            features=$(echo "$log"       | grep -E "^[0-9a-f]{7} (feat|feat\(.*\)): .+" -c)
+            refactorings=$(echo "$log"   | grep -E "^[0-9a-f]{7} (refactor|refactor\(.*\)): .+" -c)
+            overrides=$(echo "$log"      | grep -E "^[0-9a-f]{7} (ver|version): [v]{0,1}[0-9+]\.[0-9]+\.[0-9]+$" -c)
 
             echo "::group::conventional commits"
               echo "badRefactorings=$badRefactorings"
@@ -81,7 +80,7 @@ jobs:
               echo "fixes=$fixes"
               echo "features=$features"
               echo "refactorings=$refactorings"
-              echo "overrides=$override"
+              echo "overrides=$overrides"
             echo "::endgroup::"
 
             if [[ $badRefactorings -gt 0 ]]; then
@@ -95,7 +94,7 @@ jobs:
               echo "::error::only one version override commit is allowed"
               exit 1
             elif [[ $overrides -eq 1 ]]; then
-              tag=$(echo "$log" | grep -E " (ver|version): [v]{0,1}[0-9+]\.[0-9]+\.[0-9]+$" | grep -oE "[v]{0,1}[0-9]+\.[0-9]+\.[0-9]+")
+              tag=$(echo "$log" | grep -E "^(ver|version): [v]{0,1}[0-9+]\.[0-9]+\.[0-9]+$" | grep -oE "[v]{0,1}[0-9]+\.[0-9]+\.[0-9]+")
               echo "::warning::gitlog:'version' override commit identified; using '$tag'"
               regex="^[v]{0,1}([0-9]+)\.([0-9]+)\.([0-9]+).*"
               if [[ $tag =~ $regex ]]; then
@@ -115,12 +114,11 @@ jobs:
             elif [[ $fixes -gt 0 || refactorings -gt 0 ]]; then
               patch=$((patch+1))
             elif [[ ! -z $tag ]]; then
-              # no significant commits found and there is an existing release tag
-              isTagged=true
+              # no significant commits found but there is an existing release tag
+              patch=$((patch+1))
             else
-              # no significant commits found and there is no existing release tag
-              # so this will be the initial release which, by convention is v0.1.0
-              isTagged=false
+              # no significant commits found and there is no prior tag
+              # so this will be the initial release (v0.1.0 by convention)
               major=0; minor=1; patch=0
             fi
           fi
@@ -141,12 +139,12 @@ jobs:
             changelog=""
             regex="^([0-9a-f]{7}) (.+)$"
             while read entry; do
-                if [[ ! $entry =~ $regex ]]; then
-                  continue
-                fi
-                sha="${BASH_REMATCH[1]}"
-                msg="${BASH_REMATCH[2]}"
-                changelog+="[<code>$sha</code>]($project/commit/$sha) $msg\n"
+              if [[ ! $entry =~ $regex ]]; then
+                continue
+              fi
+              sha="${BASH_REMATCH[1]}"
+              msg="${BASH_REMATCH[2]}"
+              changelog+="[<code>$sha</code>]($project/commit/$sha) $msg\n"
             done <<< "$log"
             
             echo -e "### :clipboard: &nbsp;&nbsp; change log \n" >> $GITHUB_STEP_SUMMARY
