@@ -16,41 +16,72 @@ on:
         required: false
         default: false
 jobs:
-  create:
-    if: ${{ !inputs.dryRun }}
+  preflight:
     runs-on: ubuntu-latest
+    outputs:
+      CONFIG_VERSION: ${{ steps.config.outputs.VERSION }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # check for presence of .goreleaser.yml
+      # FUTURE: verify that specified tag exists 
+      # - name: 'release: check for tag'
+      #   id: tag
+      #   run: |
+      #     if [[ -z "$(git tag --points-at HEAD)" ]]; then
+      #       echo "::error::no tag found"
+      #       exit 1
+      #     fi
+
       - name: 'release: check configuration'
         id: config
         run: |
-          # a script to check for the presence of a .goreleaser.yml file
+          # a script to check for the presence and syntax version of .goreleaser.yml file
 
-          if [[ -f .goreleaser.yml ]]; then
-            if [[ -z "$(cat .goreleaser.yml)" ]]; then
-              echo "::error::.goreleaser.yml is empty"
-              exit 1
-            fi
-
-            echo "found .goreleaser.yml:-"
-            awk '{print "| "$0}' .goreleaser.yml
-
-            echo "GO_VERSION=$(go version)" >> $GITHUB_OUTPUT
-
-            echo "::group::outputs"
-              cat $GITHUB_OUTPUT
-            echo "::endgroup::"            
-
-            exit 0
+          if [[ ! -f .goreleaser.yml ]]; then
+            echo "::error::no .goreleaser.yml"
+            exit 1
           fi
 
-          echo "::error::no .goreleaser.yml"
-          exit 1
+          if [[ -z "$(cat .goreleaser.yml)" ]]; then
+            echo "::error::.goreleaser.yml is empty"
+            exit 1
+          fi
+          
+          ver=$(grep -Eo "^version: [12]$" .goreleaser.yml | awk '{print $2}')  
+          if [[ $ver == "1" ]]; then  
+            echo "::warn::.goreleaser.yml should be updated to version 2 syntax"  
+            echo -e "### :warning: .goreleaser.yml should be updated to version 2 syntax\n" >> $GITHUB_STEP_SUMMARY  
+            echo -e "> _from: job.create-release.yml_" >> $GITHUB_STEP_SUMMARY  
+          elif [[ $ver != "2" ]]; then  
+            echo "::error::.goreleaser.yml configuration version $ver is not supported (version 1 and 2 are supported)"  
+            echo -e "### :no_entry: Unsupported GoReleaser Configuration\n" >> $GITHUB_STEP_SUMMARY  
+            echo "Detected version $ver; versions 1 and 2 are supported" >> $GITHUB_STEP_SUMMARY  
+            echo -e "> _from: job.create-release.yml_" >> $GITHUB_STEP_SUMMARY  
+            exit 1  
+          fi  
+
+          echo "found valid .goreleaser.yml:-"
+          awk '{print "| "$0}' .goreleaser.yml
+
+          echo "VERSION=$ver" >> $GITHUB_OUTPUT
+
+          echo "::group::outputs"
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"            
+
+  create:
+    if: ${{ !inputs.dryRun }}
+    runs-on: ubuntu-latest
+    needs:
+      - preflight
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # install Go and download dependencies
       - name: 'go: setup ${{ inputs.goVersion }}'
@@ -60,23 +91,45 @@ jobs:
           go-version: ${{ inputs.goVersion }}
           cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
     
-      - name: 'go: mod download'
+      - name: 'go: dependencies'
+        id: go
         if: ${{ (inputs.goVersion != '') }}
-        run: go mod download
+        run: |
+          # download dependencies and determine the exact version of go installed
+          go mod download
+
+          echo "VERSION=$(go version)" >> $GITHUB_OUTPUT
+
+          echo "::group::outputs"
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"            
 
       # create the release
-      - name: 'release: goreleaser'
+      - name: 'release: goreleaser (v5)'
+        if: ${{ needs.preflight.outputs.CONFIG_VERSION == '1' }}
         uses: goreleaser/goreleaser-action@v5
         with:
-          args: release --clean ${{ steps.config.outputs.config }}
+          # args: release --clean ${{ steps.config.outputs.config }}
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GO_VERSION: ${{ steps.config.outputs.GO_VERSION }}
+          GO_VERSION: ${{ steps.go.outputs.VERSION }}
+      - name: 'release: goreleaser (v6)'
+        if: ${{ needs.preflight.outputs.CONFIG_VERSION == '2' }}
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          # args: release --clean ${{ steps.config.outputs.config }}
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GO_VERSION: ${{ steps.go.outputs.VERSION }}
 
   dry-run:
     if: ${{ inputs.dryRun }}
     runs-on: ubuntu-latest
     name: 'dry run'
+    needs:
+      - preflight
     steps:
       - name: checkout
         uses: actions/checkout@v4
