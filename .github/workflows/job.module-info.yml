@@ -8,24 +8,21 @@ on:
         default: '.'
     outputs:
       moduleName:
-        value: ${{ jobs.module-info.outputs.moduleName }}
+        value: ${{ jobs.module.outputs.moduleName }}
       goVersion:
-        value: ${{ jobs.module-info.outputs.goVersion }}
-      serviceName:
-        value: ${{ jobs.module-info.outputs.serviceName }}
-      ingressPath:
-        value: ${{ jobs.module-info.outputs.ingressPath }}
+        value: ${{ jobs.module.outputs.goVersion }}
       usesGoReleaser:
-        value: ${{ jobs.module-info.outputs.usesGoReleaser }}
+        value: ${{ jobs.module.outputs.usesGoReleaser }}
+      isPublic:
+        value: ${{ jobs.module.outputs.isPublic }}
 
 jobs:
-  module-info:
+  module:
     outputs:
-      moduleName: ${{ steps.info.outputs.moduleName }}
-      goVersion: ${{ steps.info.outputs.goVersion }}
-      serviceName: ${{ steps.info.outputs.serviceName }}
-      ingressPath: ${{ steps.info.outputs.ingressPath }}
-      usesGoReleaser: ${{ steps.info.outputs.usesGoReleaser }}
+      moduleName: ${{ steps.go-mod.outputs.moduleName }}
+      goVersion: ${{ steps.go-mod.outputs.goVersion }}
+      usesGoReleaser: ${{ steps.go-releaser.outputs.configExists }}
+      isPublic: ${{ steps.repo.outputs.isPublic }}
     runs-on: ubuntu-latest
     steps:
     - name: checkout
@@ -33,8 +30,33 @@ jobs:
       with:
         fetch-depth: 0  # get tags and branches for gitversion
 
+    - name: 'github: visibility'
+      id: repo
+      run: |
+        OUTPUT=$(curl --header "Authorization: token ${{ github.token }}" https://api.github.com/repos/${{ github.repository }})
+        echo "::group::api result"
+          echo "$OUTPUT"
+        echo "::endgroup::"
+
+        case $(echo $OUTPUT | jq ".private") in
+          false) isPublic=true
+          ;;
+          
+          true) isPublic=false
+          ;;
+          
+          *) echo "::error::unable to get repository info:$(echo $OUTPUT | jq '.message')"
+          exit -1
+          ;;
+        esac
+        
+        echo "::group::outputs"
+          echo "isPublic=$isPublic" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+        echo "::endgroup::"
+          
     - name: 'go.mod: parse'
-      id: info
+      id: go-mod
       shell: bash --noprofile --norc {0}
       run: |
         # a script to extract build information from ${{ inputs.path }}/go.mod
@@ -62,33 +84,21 @@ jobs:
         # get go version from go.mod
         gover=$(echo "$mod" | grep -E "^go "); gover=${gover##* }; gover=${gover%% *}
         
-        # get service name from go.mod
-        service=$(echo "$mod" | grep -E "^//service:name:" -m 1); service=${service##*:}
-        
-        # if the service name is not explicitly set but a //service comment is
-        # present then use the module name as the service name (without host.tld/ prefix)
-        if [[ -z $service && ! -z $(echo "$mod" | grep -E "^//service[\s]*$") ]]; then
-          if [[ ! -z $(echo "$module" | grep "/") ]]; then service=${module##*/}; fi
-          if [[ -z $service ]]; then service=$module; fi
-        fi
-        service=${service%% *}
-        
-        # get ingress path from go.mod
-        ingress=$(echo "$mod" | grep -E "^//ingress:path:" -m 1); ingress=${ingress##*:}
-
-        # check for presence of a .goreleaser.yml|yaml file
-        [[ -f .goreleaser.yml || -f .goreleaser.yaml ]] && usesGoReleaser="true"
-        
-        echo "::group::results/outputs"
-          echo "moduleName  : $module"
-          echo "goVersion   : $gover"
-          echo "serviceName : $service"
-          echo "ingressPath : $ingress"
-          echo "usesGoReleaser: $usesGoReleaser"
-
+        echo "::group::outputs"
           echo "moduleName=$module" >> $GITHUB_OUTPUT
           echo "goVersion=$gover" >> $GITHUB_OUTPUT
-          echo "serviceName=$service" >> $GITHUB_OUTPUT
-          echo "ingressPath=$ingress" >> $GITHUB_OUTPUT
-          echo "usesGoReleaser=$usesGoReleaser" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+        echo "::endgroup::"
+
+    - name: 'go releaser: config'
+      id: go-releaser
+      shell: bash --noprofile --norc {0}
+      run: |
+        # check for presence of a .goreleaser.yml|yaml file
+        configExists="false"
+        [[ -f ${{ inputs.path }}/.goreleaser.yml || -f ${{ inputs.path }}/.goreleaser.yaml ]] && configExists="true"
+        
+        echo "::group::outputs"
+          echo "configExists=$configExists" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
         echo "::endgroup::"
