@@ -12,75 +12,64 @@ on:
         value: ${{ jobs.module-info.outputs.moduleName }}
       goVersion:
         value: ${{ jobs.module-info.outputs.goVersion }}
-      serviceName:
-        value: ${{ jobs.module-info.outputs.serviceName }}
-      ingressPath:
-        value: ${{ jobs.module-info.outputs.ingressPath }}
       semver:
-        value: ${{ jobs.gitlog.outputs.semver }}
+        value: ${{ jobs.semver.outputs.semver }}
       isTagged:
-        value: ${{ jobs.gitlog.outputs.isTagged }}
+        value: ${{ jobs.semver.outputs.isTagged }}
       isPublic:
-        value: ${{ jobs.repo-visibility.outputs.isPublic }}
+        value: ${{ jobs.module-info.outputs.isPublic }}
       usesGoReleaser:
         value: ${{ jobs.module-info.outputs.usesGoReleaser }}
   
 jobs:
-  gitlog:
-    uses: ./.github/workflows/job.git-log.yml
+  semver:
+    uses: ./.github/workflows/job.git-semver.yml
 
   module-info:
     uses: ./.github/workflows/job.module-info.yml
 
-  repo-visibility:
-    runs-on: ubuntu-latest
-    outputs:
-      isPublic: ${{ steps.visibility.outputs.isPublic }}
-    steps:
-      - name: 'github: repo visibility'
-        id: visibility
-        run: |
-          OUTPUT=$(curl --header "Authorization: token ${{ github.token }}" https://api.github.com/repos/${{ github.repository }})
-          echo "::group::api result"
-            echo "$OUTPUT"
-          echo "::endgroup::"
-
-          case $(echo $OUTPUT | jq ".private") in
-            false) isPublic=true
-            ;;
-            
-            true) isPublic=false
-            ;;
-            
-            *) echo "::error::unable to get repository info:$(echo $OUTPUT | jq '.message')"
-            exit -1
-            ;;
-          esac
-          echo "isPublic=$isPublic" >> $GITHUB_OUTPUT
-
-          echo "::group::outputs"
-            cat $GITHUB_OUTPUT
-          echo "::endgroup::"
-
-  qa:
-    if: ${{ (github.ref != 'refs/heads/master' ) || (needs.repo-visibility.outputs.isPublic == 'true' ) }}
+  tests:
+    if: ${{ (github.ref != 'refs/heads/master' ) || (needs.module-info.outputs.isPublic == 'true' ) }}
     needs:
       - module-info
-      - repo-visibility
     outputs:
-      isPublic: ${{ needs.repo-visibility.outputs.isPublic }}
+      isPublic: ${{ needs.module-info.outputs.isPublic }}
       moduleName: ${{ needs.module-info.outputs.moduleName }}
     runs-on: ubuntu-latest
     steps:
       - name: checkout
         uses: actions/checkout@v4
 
+      # install go
       - name: 'setup: go ${{ needs.module-info.outputs.goVersion }}'
         uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.module-info.outputs.goVersion }}
           cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
 
+      # ensure that go.mod is tidy
+      - name: 'go.mod: tidy'
+        id: tidy
+        run: |
+          before=$(cat go.mod go.sum | shasum -a 256)
+          go mod tidy
+          after=$(cat go.mod go.sum | shasum -a 256)
+          if [[ "$before" != "$after" ]]; then
+            echo "::error::'go mod tidy' is required; updated go.mod/go.sum must be committed"
+            exit -1
+          fi
+
+      # lint checks
+      - name: 'go: lint'
+        if: ${{ github.ref != 'refs/heads/master' }}
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+      # if we get this far then we have a module which has passed basic hygiene
+      # checks and is ready to run any tests
+  
+      # install test-report
       - name: 'setup: test-report'
         run: |
           # a script to download and run blugnu/test-report
@@ -101,19 +90,16 @@ jobs:
           
           if [[ ! -f "test-report" ]]; then
             echo "::warning::test-report could not be installed"
+            echo -e "## :warning: &nbsp; Module QA\n" >> $GITHUB_STEP_SUMMARY
+            echo -e ":information_source: &nbsp; `test-report` could not be installed\n" >> $GITHUB_STEP_SUMMARY
             exit 0
-          else
-            echo "::group::test-report version"
-              ./test-report version
-            echo "::endgroup::"
           fi
-    
-      - name: 'go: lint'
-        if: ${{ github.ref != 'refs/heads/master' }}
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
 
+          echo "::group::test-report version"
+            ./test-report version
+          echo "::endgroup::"
+    
+      # run tests
       - name: 'go: test'
         run: |
           go mod download
@@ -140,10 +126,11 @@ jobs:
           path: coverprofile
 
   coveralls:
-    if: ${{ (github.ref == 'refs/heads/master') && (needs.qa.outputs.isPublic == 'true') && (needs.gitlog.outputs.isTagged == 'false') }}
+    if: ${{ (github.ref == 'refs/heads/master') && (needs.module-info.outputs.isPublic == 'true') && (needs.semver.outputs.isTagged == 'false') }}
     needs:
-      - gitlog
-      - qa
+      - semver
+      - module-info
+      - tests # for sequencing; coveralls requires the coverprofile artefact uploaded by tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -161,12 +148,13 @@ jobs:
           path-to-profile: coverprofile
 
   sonarcloud:
-    if: ${{ needs.qa.outputs.isPublic == 'true' && (needs.gitlog.outputs.isTagged == 'false') }}
+    if: ${{ needs.module-info.outputs.isPublic == 'true' && (needs.semver.outputs.isTagged == 'false') }}
     needs:
-      - gitlog
-      - qa
+      - semver
+      - module-info
+      - tests # for job sequencing; we only want to run sonarcloud if tests have passed
     uses: ./.github/workflows/job.sonarcloud.yml
     with:
-      moduleName: ${{ needs.qa.outputs.moduleName }}
-      moduleVersion: ${{ needs.gitlog.outputs.semver }}
+      moduleName: ${{ needs.module-info.outputs.moduleName }}
+      moduleVersion: ${{ needs.semver.outputs.semver }}
     secrets: inherit
