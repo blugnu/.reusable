@@ -12,14 +12,14 @@ on:
         value: ${{ jobs.module-info.outputs.moduleName }}
       goVersion:
         value: ${{ jobs.module-info.outputs.goVersion }}
-      semver:
-        value: ${{ jobs.semver.outputs.semver }}
-      isTagged:
-        value: ${{ jobs.semver.outputs.isTagged }}
       isPublic:
         value: ${{ jobs.module-info.outputs.isPublic }}
       usesGoReleaser:
         value: ${{ jobs.module-info.outputs.usesGoReleaser }}
+      semver:
+        value: ${{ jobs.semver.outputs.semver }}
+      isTagged:
+        value: ${{ jobs.semver.outputs.isTagged }}
   
 jobs:
   semver:
@@ -32,9 +32,6 @@ jobs:
     if: ${{ (github.ref != 'refs/heads/master' ) || (needs.module-info.outputs.isPublic == 'true' ) }}
     needs:
       - module-info
-    outputs:
-      isPublic: ${{ needs.module-info.outputs.isPublic }}
-      moduleName: ${{ needs.module-info.outputs.moduleName }}
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -51,9 +48,14 @@ jobs:
       - name: 'go.mod: tidy'
         id: tidy
         run: |
+          # a script to determine whether 'go mod tidy' is required
+
           before=$(cat go.mod go.sum | shasum -a 256)
-          go mod tidy
+          echo "::group::go mod tidy output"
+            go mod tidy
+          echo "::endgroup::"
           after=$(cat go.mod go.sum | shasum -a 256)
+          
           if [[ "$before" != "$after" ]]; then
             echo "::error::'go mod tidy' is required; updated go.mod/go.sum must be committed"
             exit -1
@@ -62,7 +64,7 @@ jobs:
       # lint checks
       - name: 'go: lint'
         if: ${{ github.ref != 'refs/heads/master' }}
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
 

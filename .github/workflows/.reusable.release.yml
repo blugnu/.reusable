@@ -1,18 +1,18 @@
 name: .reusable release
 on: push
 jobs:
-  gitlog:
-    uses: ./.github/workflows/job.git-log.yml
+  semver:
+    uses: ./.github/workflows/job.git-semver.yml
     secrets: inherit
 
   tag:
-    if: ${{ !fromJSON(needs.gitlog.outputs.isTagged) }}
+    if: ${{ !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
-      - gitlog
+      - semver
     uses:
       ./.github/workflows/job.create-tag.yml
     with:
-      label: ${{ needs.gitlog.outputs.semver }}
+      label: ${{ needs.semver.outputs.semver }}
       lightweight: true
       dryRun: ${{ (github.ref != 'refs/heads/master') }}
     secrets: inherit
@@ -21,9 +21,9 @@ jobs:
     uses:
       ./.github/workflows/job.create-release.yml
     needs:
-      - gitlog
+      - semver
       - tag
     with:
-      version: ${{ needs.gitlog.outputs.semver }}
+      version: ${{ needs.semver.outputs.semver }}
       dryRun: ${{ (github.ref != 'refs/heads/master') }}
     secrets: inherit

@@ -10,13 +10,13 @@ on:
     # most recent semver tag.
     outputs:
       semver:
-        value: ${{ jobs.analysis.outputs.semver }}
+        value: ${{ jobs.semver.outputs.semver }}
         description: "The semantic version of the HEAD commit or the next version based on conventional commits since the most recent semver tag"
       isTagged:
-        value: ${{ jobs.analysis.outputs.isTagged }}
+        value: ${{ jobs.semver.outputs.isTagged }}
         description: "true if the semver output is an existing tag; false if the semver output is the next version, yet to be tagged"
 jobs:
-  analysis:
+  semver:
     name: 'git log analysis'
     runs-on: ubuntu-latest
     outputs:
