@@ -72,7 +72,6 @@ jobs:
             fixes=$(echo "$log"          | grep -E "^[0-9a-f]{7} (fix|fix\(.*\)): .+" -c)
             features=$(echo "$log"       | grep -E "^[0-9a-f]{7} (feat|feat\(.*\)): .+" -c)
             refactorings=$(echo "$log"   | grep -E "^[0-9a-f]{7} (refactor|refactor\(.*\)): .+" -c)
-            overrides=$(echo "$log"      | grep -E "^[0-9a-f]{7} (ver|version): [v]{0,1}[0-9+]\.[0-9]+\.[0-9]+$" -c)
 
             echo "::group::conventional commits"
               echo "badRefactorings=$badRefactorings"
@@ -80,7 +79,6 @@ jobs:
               echo "fixes=$fixes"
               echo "features=$features"
               echo "refactorings=$refactorings"
-              echo "overrides=$overrides"
             echo "::endgroup::"
 
             if [[ $badRefactorings -gt 0 ]]; then
@@ -90,21 +88,7 @@ jobs:
             #TODO: warn if there are any BREAKING CHANGE commits (recommend fix!/feature! as preferred)
 
             semver="?"
-            if [[ $overrides -gt 1 ]]; then
-              echo "::error::only one version override commit is allowed"
-              exit 1
-            elif [[ $overrides -eq 1 ]]; then
-              tag=$(echo "$log" | grep -E "^(ver|version): [v]{0,1}[0-9+]\.[0-9]+\.[0-9]+$" | grep -oE "[v]{0,1}[0-9]+\.[0-9]+\.[0-9]+")
-              echo "::warning::gitlog:'version' override commit identified; using '$tag'"
-              regex="^[v]{0,1}([0-9]+)\.([0-9]+)\.([0-9]+).*"
-              if [[ $tag =~ $regex ]]; then
-                  major="${BASH_REMATCH[1]}"
-                  minor="${BASH_REMATCH[2]}"
-                  patch="${BASH_REMATCH[3]}"
-              else
-                echo "::error::invalid 'version' commit; check the log"
-              fi
-            elif [[ $breaking -gt 0 ]]; then
+            if [[ $breaking -gt 0 ]]; then
               major=$((major+1))
               minor=0
               patch=0
