@@ -1,20 +1,16 @@
 name: 'job: git log analysis'
 on:
   workflow_call:
-    # If the HEAD commit is tagged with a semver version then semver will be
-    # that version and isTagged will be true.
-    #
-    # If the HEAD commit is not tagged or is tagged with some tag that is not a
-    # semver version, then isTagged will be false and semver will be the next
-    # semantic version based on the conventional commits in the log since the
-    # most recent semver tag.
     outputs:
+      # semver is an output that contains the version to be applied based on any current version and the
+      # conventional commits in the git log
       semver:
         value: ${{ jobs.semver.outputs.semver }}
-        description: "The semantic version of the HEAD commit or the next version based on conventional commits since the most recent semver tag"
+        description: 'The semantic version of the HEAD commit or the next version based on conventional commits since the most recent semver tag'
+      # isTagged is an output that indicates whether the semver output represents an existing tag (true) or not (false)
       isTagged:
         value: ${{ jobs.semver.outputs.isTagged }}
-        description: "true if the semver output is an existing tag; false if the semver output is the next version, yet to be tagged"
+        description: 'true if the semver output is an existing tag; false if the semver output is a new version, yet to be tagged'
 jobs:
   semver:
     name: 'git log analysis'
@@ -25,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # required to have a log to analyse          
+          fetch-depth: 0 # required to have a log to analyse
 
       - name: 'gitlog'
         id: gitlog
@@ -34,8 +30,8 @@ jobs:
           # script to identify the semantic version from conventional commits in the git log and preview the release change log
 
           semver=""
-          isTagged=false
-          
+          isTagged="false"
+
           tags=$(git tag --sort=-creatordate)
           if [[ -z "$tags" ]]; then
             # no previous tag; this is the initial release but we must also
@@ -57,11 +53,11 @@ jobs:
 
           regex="^[v]{0,1}([0-9]+)\.([0-9]+)\.([0-9]+).*"
           major=0; minor=0; patch=0
-          if [[ $tag =~ $regex ]]; then
+          [[ $tag =~ $regex ]] && {
               major="${BASH_REMATCH[1]}"
               minor="${BASH_REMATCH[2]}"
               patch="${BASH_REMATCH[3]}"
-          fi
+          }
 
           if [[ ! -z $log ]]; then
             # determine the next semver based on any conventional commits in the log
@@ -88,7 +84,24 @@ jobs:
             #TODO: warn if there are any BREAKING CHANGE commits (recommend fix!/feature! as preferred)
 
             semver="?"
-            if [[ $breaking -gt 0 ]]; then
+            if [[ -z $tag ]]; then
+              if [[ ($breaking -gt 0) || ($features -gt 0) || ($fixes -gt 0) ]]; then
+                # significant commits identified and there is no prior tag; this will be the
+                # initial version (v0.1.0 by convention) regardless of the significance
+                # of the commits
+                major=0; minor=1; patch=0
+              else
+                # no significant commits found
+                #
+                # isTagged is set true to avoid running tests or releasing since (according to the
+                # conventional commits in the log) there is not yet any functionality to be tested
+                # or released
+                [[ "$branch" != "master" ]] && {
+                  echo "::warning::no significant commits; nothing to test/release"
+                }
+                isTagged="true"
+              fi
+            elif [[ $breaking -gt 0 ]]; then
               major=$((major+1))
               minor=0
               patch=0
@@ -97,43 +110,44 @@ jobs:
               patch=0
             elif [[ $fixes -gt 0 || refactorings -gt 0 ]]; then
               patch=$((patch+1))
-            elif [[ ! -z $tag ]]; then
-              # no significant commits found but there is an existing release tag
-              patch=$((patch+1))
             else
-              # no significant commits found and there is no prior tag
-              # so this will be the initial release (v0.1.0 by convention)
-              major=0; minor=1; patch=0
+              # no significant commits found but there is an existing release tag;
+              # we assume that the commits are not code-related (documentation, ci/cd etc)
+              # leaving the version unchanged and setting isTagged to true
+              [[ "$branch" != "master" ]] && {
+                echo "::warning::no significant commits since $tag; version unchanged; test/release will be skipped"
+              }
+              isTagged="true"
             fi
           fi
           [[ "$semver" == "?" ]] && semver="v$major.$minor.$patch"
-          
+
           # if not master add a semver label identifying the branch
           # and emit an (approximate) preview of the release notes
 
           branch="${{ github.ref }}"
           branch=$(echo "$branch" | sed -E "s/refs\/heads\///")
 
-          if [[ "$branch" != "master" ]]; then
+          [[ "$branch" != "master" && $isTagged != "true" ]] && {
             semver+="-$branch"
 
-            echo -e "### $semver\n" >> $GITHUB_STEP_SUMMARY
+            echo -e "### :ticket: $semver\n" >> $GITHUB_STEP_SUMMARY
             echo -e "> _:point_right: will be tagged as v$major.$minor.$patch when merged_\n" >> $GITHUB_STEP_SUMMARY
             project="https://github.com/${{ github.repository }}"
             changelog=""
             regex="^([0-9a-f]{7}) (.+)$"
             while read entry; do
-              if [[ ! $entry =~ $regex ]]; then
-                continue
-              fi
+              [[ ! $entry =~ $regex ]] && continue
+
               sha="${BASH_REMATCH[1]}"
               msg="${BASH_REMATCH[2]}"
+
               changelog+="[<code>$sha</code>]($project/commit/$sha) $msg\n"
             done <<< "$log"
-            
+
             echo -e "### :clipboard: &nbsp;&nbsp; change log \n" >> $GITHUB_STEP_SUMMARY
             echo -e "$changelog\n" >> $GITHUB_STEP_SUMMARY
-          fi
+          }
 
           echo "semver=$semver" >> $GITHUB_OUTPUT
           echo "isTagged=$isTagged" >> $GITHUB_OUTPUT

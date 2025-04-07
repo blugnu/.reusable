@@ -18,6 +18,7 @@ jobs:
       dryRun: ${{ (github.ref != 'refs/heads/master') }}
 
   release:
+    if: ${{ !fromJSON(needs.qa.outputs.isTagged) }}
     needs:
       - qa
       - tag

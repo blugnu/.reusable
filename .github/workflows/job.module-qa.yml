@@ -20,7 +20,7 @@ on:
         value: ${{ jobs.semver.outputs.semver }}
       isTagged:
         value: ${{ jobs.semver.outputs.isTagged }}
-  
+
 jobs:
   semver:
     uses: ./.github/workflows/job.git-semver.yml
@@ -29,9 +29,10 @@ jobs:
     uses: ./.github/workflows/job.module-info.yml
 
   tests:
-    if: ${{ (github.ref != 'refs/heads/master' ) || (needs.module-info.outputs.isPublic == 'true' ) }}
+    if: ${{ ((github.ref != 'refs/heads/master' ) || fromJSON(needs.module-info.outputs.isPublic)) && !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
       - module-info
+      - semver
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -42,7 +43,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.module-info.outputs.goVersion }}
-          cache: false   # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
+          cache: false # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
 
       # ensure that go.mod is tidy
       - name: 'go.mod: tidy'
@@ -55,7 +56,7 @@ jobs:
             go mod tidy
           echo "::endgroup::"
           after=$(cat go.mod go.sum | shasum -a 256)
-          
+
           if [[ "$before" != "$after" ]]; then
             echo "::error::'go mod tidy' is required; updated go.mod/go.sum must be committed"
             exit -1
@@ -70,7 +71,7 @@ jobs:
 
       # if we get this far then we have a module which has passed basic hygiene
       # checks and is ready to run any tests
-  
+
       # install test-report
       - name: 'setup: test-report'
         run: |
@@ -89,7 +90,7 @@ jobs:
           curl -LO https://github.com/blugnu/test-report/releases/download/v${ver}/test-report_${ver}_linux_amd64.tar.gz
           tar -xvzf test-report_${ver}_linux_amd64.tar.gz test-report
           rm test-report_${ver}_linux_amd64.tar.gz
-          
+
           if [[ ! -f "test-report" ]]; then
             echo "::warning::test-report could not be installed"
             echo -e "## :warning: &nbsp; Module QA\n" >> $GITHUB_STEP_SUMMARY
@@ -100,7 +101,7 @@ jobs:
           echo "::group::test-report version"
             ./test-report version
           echo "::endgroup::"
-    
+
       # run tests
       - name: 'go: test'
         run: |
@@ -128,7 +129,7 @@ jobs:
           path: coverprofile
 
   coveralls:
-    if: ${{ (github.ref == 'refs/heads/master') && (needs.module-info.outputs.isPublic == 'true') && (needs.semver.outputs.isTagged == 'false') }}
+    if: ${{ (github.ref == 'refs/heads/master') && fromJSON(needs.module-info.outputs.isPublic) && !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
       - semver
       - module-info
@@ -150,7 +151,7 @@ jobs:
           path-to-profile: coverprofile
 
   sonarcloud:
-    if: ${{ needs.module-info.outputs.isPublic == 'true' && (needs.semver.outputs.isTagged == 'false') }}
+    if: ${{ fromJSON(needs.module-info.outputs.isPublic) && !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
       - semver
       - module-info
