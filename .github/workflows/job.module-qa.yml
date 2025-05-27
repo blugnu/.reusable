@@ -108,7 +108,7 @@ jobs:
           go mod download
 
           if [[ -f test-report ]]; then
-            result=$((go test ./... -coverprofile=coverprofile -json | ./test-report) && echo "PASS" || echo "FAIL")
+            result=$((go test ./... -coverprofile=coverprofile -v -json | ./test-report) && echo "PASS" || echo "FAIL")
             
             # add test report to the job summary
             report=$(cat test-report.md)
