@@ -1,3 +1,7 @@
+<!-- markdownlint-disable MD041 -->
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/blugnu/.reusable?utm_source=oss&utm_medium=github&utm_campaign=blugnu%2F.reusable&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+<!-- markdownlint-enable -->
+
 # .reusable
 
 Provides reusable workflows for used by `blugnu` projects and any other go projects that find them useful.
@@ -7,10 +11,10 @@ in dependent projects; alternatively, complete higher order `.reusable` workflow
 for common use cases, such as Go module releases.
 
 To avoid workflows being broken by changes to `.reusable` workflows, it is recommended to pin workflows to
-a release version rather than `@master`:
+a specific version, rather than `@master`:
 
 ```yml
-uses: blugnu/.reusable/.github/workflows/pipeline.module-release.yml@v0.2.0
+uses: blugnu/.reusable/.github/workflows/pipeline.module-release.yml@v0.7.2
 ```
 
 ## Workflow Filenames
@@ -31,20 +35,21 @@ possibility of filename collisions.
 
 - Releases are created using [GoReleaser](https://goreleaser.com/).
 - Versioning of releases is derived from [conventional commits](https://www.conventionalcommits.org) by
-the `git-log.yml` workflow.
+in the git commit history since the previous (tagged) release; log analysis is performed by the `job.git-semver.yml` workflow.
 
 ### Releases: GoReleaser Configuration
 
-Workflows that create releases (whether using `release.yml` or the higher-order `module-release.yml` workflow) **MUST**
-provide a `.goreleaser.yml` configuration file in the root of the repository.
+Workflows that create releases (whether using `job.create-release.yml` or the higher-level
+`pipeline.module-release.yml` workflow) **MUST** provide a `.goreleaser.yml` configuration file in the
+root of the repository.
 
 For projects that do not ship binaries (e.g. Go modules) the following minimal configuration is sufficient:
 
 ```yml
 # .goreleaser.yml
-version: 1
+version: 2
 builds:
-  skip: true
+  - skip: true
 ```
 
 ## Versioning: Conventional Commits
@@ -62,22 +67,22 @@ Any commit type may be used, but only `fix`, `feat`, and `refactor` commits are 
 
 Two exceptions to the conventional commits specification are enforced:
 
-- `BREAKING CHANGE` commits or footers are NOT allowed.
-- `refactor!` commits are NOT allowed.
+- `BREAKING CHANGE` commits or footers are **NOT** allowed (_obscures the cause of any breaking change_).
+- `refactor!` commits are **NOT** allowed (_a refactoring that breaks the API is not a refactoring_).
 
-In both cases use a `fix!` or `feat!` commit instead.
+In both cases, use a `fix!` or `feat!` commit instead.
 
 No more than one increment is applied; the version will be incremented by the highest significant commit type.
-e.g. a log comprised of `fix`, `feat`, and `refactor` commits will result in a single minor version increment
+e.g. a log comprised of `fix`, `feat`, `refactor` and `cicd` commits will result in a single minor version increment
 and the patch version being set to zero.
 
-<hr>
+---
 
 ## Workflow Examples
 
 ### A Go Module Repository
 
-> The module repository uses the provided higher order `module-release.yml` callable workflow.
+> The module repository uses the provided higher level `pipeline.module-release.yml` callable workflow.
 > This provides a complete test and release workflow for a Go module.
 
 ```yml
@@ -86,14 +91,11 @@ name: release pipeline
 on: push
 jobs:
   release:
-    uses: blugnu/.reusable/.github/workflows/pipeline.module-release.yml@v0.1.1
+    uses: blugnu/.reusable/.github/workflows/pipeline.module-release.yml@v0.7.2
     secrets: inherit
 ```
 
 ### A Non-Go Module Repository
-
-> `git-log.yml` is used to obtain a semantic version from the git log of the current branch and
-> the `release.yml` workflow to create a tag and release (when merged to master).
 
 ```yml
 # release.yml
@@ -101,12 +103,12 @@ name: release pipeline
 on: push
 jobs:
   gitlog:
-    uses: blugnu/.reusable/.github/workflows/job.git-log.yml@v0.2.0
+    uses: blugnu/.reusable/.github/workflows/job.git-semver.yml@v0.7.2
     secrets: inherit
 
   release:
     if: ${{ github.ref == 'refs/heads/master' }}
-    uses: blugnu/.reusable/.github/workflows/job.release.yml@v0.2.0
+    uses: blugnu/.reusable/.github/workflows/job.create-release.yml@v0.7.2
     needs:
       - gitlog
     with:
