@@ -13,7 +13,7 @@ on:
         description: 'true if the semver output is an existing tag; false if the semver output is a new version, yet to be tagged'
 jobs:
   semver:
-    name: 'git log analysis'
+    name: 'semver'
     runs-on: ubuntu-latest
     outputs:
       semver: ${{ steps.gitlog.outputs.semver }}

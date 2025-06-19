@@ -18,6 +18,7 @@ on:
 
 jobs:
   module:
+    name: 'module info'
     outputs:
       moduleName: ${{ steps.go-mod.outputs.moduleName }}
       goVersion: ${{ steps.go-mod.outputs.goVersion }}

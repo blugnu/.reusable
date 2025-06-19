@@ -29,6 +29,29 @@ jobs:
     uses: ./.github/workflows/job.module-info.yml
 
   tests:
+    name: 'run tests'
+    # for a private repository (!isPublic), tests only run on feature branches:
+    #
+    # - if tests pass on the feature branch it is reasonable to assume that they
+    #   will pass when master is rebased on that feature.  We do not rebase on
+    #   features with failing tests!
+    #
+    # - results are NOT published to any code quality services (yet) as all such
+    #   services are (currently) on plans which do not support private repositories
+    #
+    # for a public repository tests run on all branches, including master:
+    #
+    # - the same assumption about tests passing on feature branches applies to
+    #   public repositories, but we need to run the tests to generate coverage and
+    #   other artefacts required by code quality services
+    #
+    # - results are published to code quality services (coveralls, snyk, sonarcloud)
+    #
+    # - tests do NOT run if the module is already tagged (i.e. a release); this ONLY
+    #   arises if go-releaser has failed since this runs AFTER the release tag has
+    #   been created; i.e. the pipeline is running in order to re-run go-releaser
+    #   on a module that has already been tagged for release and so has already passed
+    #   all tests and other qa checks
     if: ${{ ((github.ref != 'refs/heads/master' ) || fromJSON(needs.module-info.outputs.isPublic)) && !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
       - module-info
@@ -129,6 +152,7 @@ jobs:
           path: coverprofile
 
   coveralls:
+    name: 'coveralls: send coverage'
     if: ${{ (github.ref == 'refs/heads/master') && fromJSON(needs.module-info.outputs.isPublic) && !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
       - semver
@@ -150,7 +174,18 @@ jobs:
         with:
           path-to-profile: coverprofile
 
+  snyk:
+    name: 'snyk: scan for vulnerabilities'
+    if: ${{ fromJSON(needs.module-info.outputs.isPublic) && !fromJSON(needs.semver.outputs.isTagged) }}
+    needs:
+      - semver
+      - module-info
+      - tests # for job sequencing; we only want to run snyk if tests have passed
+    uses: ./.github/workflows/job.snyk.yml
+    secrets: inherit
+
   sonarcloud:
+    name: 'sonarcloud: perform analysis'
     if: ${{ fromJSON(needs.module-info.outputs.isPublic) && !fromJSON(needs.semver.outputs.isTagged) }}
     needs:
       - semver
