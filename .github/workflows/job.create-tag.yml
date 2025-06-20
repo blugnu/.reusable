@@ -30,6 +30,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 'git: safe directory'
+        run: |
+          # ensure that the repository is a safe directory for git operations
+          git config --global --add safe.directory ${{ github.workspace }}
+
       - name: 'tag: annotated'
         if: ${{ !inputs.lightweight && !inputs.dryRun }}
         uses: rickstaa/action-create-tag@v1
