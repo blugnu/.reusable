@@ -107,7 +107,7 @@ jobs:
       # create the release
       - name: 'release: goreleaser (v5)'
         if: ${{ needs.preflight.outputs.CONFIG_VERSION == '1' }}
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           # args: release --clean ${{ steps.config.outputs.config }}
           args: release --clean
