@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD041 -->
-![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/blugnu/.reusable?utm_source=oss&utm_medium=github&utm_campaign=blugnu%2F.reusable&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/blugnu/.reusable?utm_source=oss&utm_medium=github&utm_campaign=blugnu%2F.reusable&color=FF5700&logo=coderabbit)
 <!-- markdownlint-enable -->
 
 # .reusable
