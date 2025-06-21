@@ -1,10 +1,24 @@
 name: 'pipeline: module-release'
 on:
   workflow_call:
+    inputs:
+      defaultLinterVersion:
+        description: 'major version of golangci-lint to use (1 or 2), defaults to 1; ignored if a golangci config file is present'
+        type: number
+        default: 1
+      testReportVersion:
+        description: "The version of test-report to use; defaults to 'latest'"
+        type: string
+        required: false
+        default: 'latest'
+
 jobs:
   qa:
     uses: ./.github/workflows/job.module-qa.yml
     secrets: inherit
+    with:
+      defaultLinterVersion: ${{ inputs.defaultLinterVersion }}
+      testReportVersion: ${{ inputs.testReportVersion }}
 
   tag:
     if: ${{ !fromJSON(needs.qa.outputs.isTagged) }}

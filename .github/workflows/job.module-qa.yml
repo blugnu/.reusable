@@ -2,6 +2,10 @@ name: 'job: module qa'
 on:
   workflow_call:
     inputs:
+      golangcilintVersion:
+        description: 'version of golangci-lint to use (1 or 2); defaults to 1'
+        type: number
+        default: 1
       testReportVersion:
         description: 'The version of test-report to use'
         type: string
@@ -27,6 +31,8 @@ jobs:
 
   module-info:
     uses: ./.github/workflows/job.module-info.yml
+    with:
+      golangcilintVersion: ${{ inputs.golangcilintVersion }}
 
   tests:
     name: 'run tests'

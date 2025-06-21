@@ -6,11 +6,17 @@ on:
         description: 'path to go.mod'
         type: string
         default: '.'
+      defaultLinterVersion:
+        description: 'major version of golangci-lint to use (1 or 2), defaults to 1; ignored if a golangci config file is present'
+        type: number
+        default: 1
     outputs:
       moduleName:
         value: ${{ jobs.module.outputs.moduleName }}
       goVersion:
         value: ${{ jobs.module.outputs.goVersion }}
+      lintVersion:
+        value: ${{ jobs.module.outputs.lintVersion }}
       usesGoReleaser:
         value: ${{ jobs.module.outputs.usesGoReleaser }}
       isPublic:
@@ -22,84 +28,131 @@ jobs:
     outputs:
       moduleName: ${{ steps.go-mod.outputs.moduleName }}
       goVersion: ${{ steps.go-mod.outputs.goVersion }}
+      lintVersion: ${{ steps.golangci-lint.outputs.lintVersion }}
       usesGoReleaser: ${{ steps.go-releaser.outputs.configExists }}
       isPublic: ${{ steps.repo.outputs.isPublic }}
     runs-on: ubuntu-latest
     steps:
-    - name: checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # get tags and branches for gitversion
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # get tags and branches for gitversion
 
-    - name: 'github: visibility'
-      id: repo
-      run: |
-        OUTPUT=$(curl --header "Authorization: token ${{ github.token }}" https://api.github.com/repos/${{ github.repository }})
-        echo "::group::api result"
-          echo "$OUTPUT"
-        echo "::endgroup::"
+      - name: 'github: visibility'
+        id: repo
+        run: |
+          OUTPUT=$(curl --header "Authorization: token ${{ github.token }}" https://api.github.com/repos/${{ github.repository }})
+          echo "::group::api result"
+            echo "$OUTPUT"
+          echo "::endgroup::"
 
-        case $(echo $OUTPUT | jq ".private") in
-          false) isPublic=true
-          ;;
-          
-          true) isPublic=false
-          ;;
-          
-          *) echo "::error::unable to get repository info:$(echo $OUTPUT | jq '.message')"
-          exit -1
-          ;;
-        esac
-        
-        echo "::group::outputs"
-          echo "isPublic=$isPublic" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-        echo "::endgroup::"
-          
-    - name: 'go.mod: parse'
-      id: go-mod
-      shell: bash --noprofile --norc {0}
-      run: |
-        # a script to extract build information from ${{ inputs.path }}/go.mod
+          case $(echo $OUTPUT | jq ".private") in
+            false) isPublic=true
+            ;;
 
-        modfile="${{ inputs.path }}/go.mod"
-        if [[ ! -f "$modfile" ]]; then
-          echo "::error::file does not exist ($modfile)"
-          exit -1
-        fi
+            true) isPublic=false
+            ;;
 
-        mod=$(cat $modfile)
-        echo "::group::$modfile"
-          echo "$mod"
-        echo "::endgroup::"
-        
-        # get module name from go.mod
-        module=$(echo "$mod" | grep -E "^module " -m 1); module=${module##* }; module=${module%% *}
-        
-        # remove any /vNN version suffix ...
-        if [[ ! -z $(echo "$module" | grep -E "^.*/v[0-9]+$") ]]; then
-          while [[ ! -z $(echo "$module" | grep -E "^.*/v[0-9]+$") ]]; do module=${module%?}; done
-          module=${module%??}
-        fi
-        
-        # get go version from go.mod
-        gover=$(echo "$mod" | grep -E "^go "); gover=${gover##* }; gover=${gover%% *}
-        
-        echo "::group::outputs"
-          echo "moduleName=$module" >> $GITHUB_OUTPUT
-          echo "goVersion=$gover" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-        echo "::endgroup::"
+            *) echo "::error::unable to get repository info:$(echo $OUTPUT | jq '.message')"
+            exit -1
+            ;;
+          esac
 
-    - name: 'go releaser: config'
-      id: go-releaser
-      shell: bash --noprofile --norc {0}
-      run: |
-        # check for presence of a .goreleaser.yml|yaml file
-        configExists="false"
-        [[ -f ${{ inputs.path }}/.goreleaser.yml || -f ${{ inputs.path }}/.goreleaser.yaml ]] && configExists="true"
-        
-        echo "::group::outputs"
-          echo "configExists=$configExists" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-        echo "::endgroup::"
+          echo "::group::outputs"
+            echo "isPublic=$isPublic" >> $GITHUB_OUTPUT
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+      - name: 'go.mod: parse'
+        id: go-mod
+        shell: bash --noprofile --norc {0}
+        run: |
+          # a script to extract build information from ${{ inputs.path }}/go.mod
+
+          modfile="${{ inputs.path }}/go.mod"
+          if [[ ! -f "$modfile" ]]; then
+            echo "::error::file does not exist ($modfile)"
+            exit -1
+          fi
+
+          mod=$(cat $modfile)
+          echo "::group::$modfile"
+            echo "$mod"
+          echo "::endgroup::"
+
+          # get module name from go.mod
+          module=$(echo "$mod" | grep -E "^module " -m 1); module=${module##* }; module=${module%% *}
+
+          # remove any /vNN version suffix ...
+          if [[ ! -z $(echo "$module" | grep -E "^.*/v[0-9]+$") ]]; then
+            while [[ ! -z $(echo "$module" | grep -E "^.*/v[0-9]+$") ]]; do module=${module%?}; done
+            module=${module%??}
+          fi
+
+          # get go version from go.mod
+          gover=$(echo "$mod" | grep -E "^go "); gover=${gover##* }; gover=${gover%% *}
+
+          echo "::group::outputs"
+            echo "moduleName=$module" >> $GITHUB_OUTPUT
+            echo "goVersion=$gover" >> $GITHUB_OUTPUT
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+      - name: 'golangci-lint: version'
+        id: golangci-lint
+        run: |
+          # a script to determine the version of golangci-lint used in the project
+
+          # by default we assume golangci.yml and a yaml pattern
+          verpat="version[[:blank:]]*:[[:blank:]]*\"\([0-9]\)\"[[:blank:]]*"
+          cfgfile="${{ inputs.path }}/.golangci.yml"
+
+          # if .golangci.yml does not exist then try .golangci.yaml (same pattern)...
+          if [[ ! -f "$cfgfile" ]]; then
+            cfgfile="${{ inputs.path }}/.golangci.yaml"
+          fi
+
+          # if .golangci.yaml does not exist then try .golangci.toml and adjust the pattern for toml
+          if [[ ! -f "$cfgfile" ]]; then
+            cfgfile="${{ inputs.path }}/.golangci.toml"
+            verpat="[[:blank:]]*version[[:blank:]]*=[[:blank:]]*\"\([0-9]\)\"[[:blank:]]*"
+          fi
+
+          # if .golangci.toml does not exist then try .golangci.json and adjust the pattern for json
+          if [[ ! -f "$cfgfile" ]]; then
+            cfgfile="${{ inputs.path }}/.golangci.json"
+            verpat="[[:blank:]]*\"version\"[[:blank:]]*:[[:blank:]]*\"\([0-9]\)\".*[[:blank:]]*"
+          fi
+
+          # if we have a .golangci.yml|yaml|toml|json file then attempt to extract the version
+          # using the pattern defined above
+
+          if [[ -f "$cfgfile" ]]; then
+            lintVersion=$(cat "$cfgfile" | sed -n "s/$verpat/\1/p")
+            if [[ -z "$lintVersion" ]]; then
+              echo "::error::no version found in any .golangci configuration file (yaml,yml,toml,json)"
+              exit 1
+            fi
+          fi
+
+          # if we didn't find a version in any config file then use the version
+          # specified in the inputs; if that is not set then default to 1
+          [[ -z $lintVersion ]] && lintVersion="${{ inputs.defaultLinterVersion }}"
+
+          echo "::group::outputs"
+            echo "lintVersion=$lintVersion" >> $GITHUB_OUTPUT
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+      - name: 'go releaser: config'
+        id: go-releaser
+        shell: bash --noprofile --norc {0}
+        run: |
+          # check for presence of a .goreleaser.yml|yaml file
+          configExists="false"
+          [[ -f ${{ inputs.path }}/.goreleaser.yml || -f ${{ inputs.path }}/.goreleaser.yaml ]] && configExists="true"
+
+          echo "::group::outputs"
+            echo "configExists=$configExists" >> $GITHUB_OUTPUT
+            cat $GITHUB_OUTPUT
+          echo "::endgroup::"
