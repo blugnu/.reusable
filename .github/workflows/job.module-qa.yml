@@ -2,8 +2,8 @@ name: 'job: module qa'
 on:
   workflow_call:
     inputs:
-      golangcilintVersion:
-        description: 'version of golangci-lint to use (1 or 2); defaults to 1'
+      defaultLinterVersion:
+        description: 'major version of golangci-lint to use (1 or 2), defaults to 1; ignored if a golangci config file is present'
         type: number
         default: 1
       testReportVersion:
@@ -11,6 +11,7 @@ on:
         type: string
         required: false
         default: 'latest'
+
     outputs:
       moduleName:
         value: ${{ jobs.module-info.outputs.moduleName }}
@@ -32,7 +33,7 @@ jobs:
   module-info:
     uses: ./.github/workflows/job.module-info.yml
     with:
-      golangcilintVersion: ${{ inputs.golangcilintVersion }}
+      defaultLinterVersion: ${{ inputs.defaultLinterVersion }}
 
   tests:
     name: 'run tests'
@@ -68,14 +69,14 @@ jobs:
         uses: actions/checkout@v4
 
       # install go
-      - name: 'setup: go ${{ needs.module-info.outputs.goVersion }}'
+      - name: 'go: install go ${{ needs.module-info.outputs.goVersion }}'
         uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.module-info.outputs.goVersion }}
           cache: false # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
 
       # ensure that go.mod is tidy
-      - name: 'go.mod: tidy'
+      - name: 'go: mod tidy'
         id: tidy
         run: |
           # a script to determine whether 'go mod tidy' is required
@@ -91,12 +92,29 @@ jobs:
             exit -1
           fi
 
-      # lint checks
-      - name: 'go: lint'
-        if: ${{ github.ref != 'refs/heads/master' }}
+      # linting
+      #
+      # the lintVersion output (string) from module-info will be set to 1 or 2 depending
+      # on the detected version of golangci-lint to use
+      - name: 'go: golangci-lint version'
+        if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion != '1' && needs.module-info.outputs.lintVersion != '2'}}
+        run: |
+          echo "::warning::unsupported golangci-lint version"
+          echo -e "## :warning: &nbsp; Module QA\n" >> $GITHUB_STEP_SUMMARY
+          echo -e ":information_source: &nbsp; no action is configured for golangci-lint v${{ needs.module-info.outputs.lintVersion }}\n" >> $GITHUB_STEP_SUMMARY
+
+      - name: 'go: golangci-lint (v1)'
+        if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion == '1'}}
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: 'go: golangci-lint (v2)'
+        if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion == '2'}}
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+
 
       # if we get this far then we have a module which has passed basic hygiene
       # checks and is ready to run any tests
