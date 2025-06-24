@@ -20,30 +20,37 @@ on:
         type: boolean
         required: false
         default: false
+
 jobs:
   create:
     if: ${{ !inputs.dryRun }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create tags
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 'tag: annotated'
+      - name: 'git: workspace config'
+        run: |
+          # script to mark the workspace directory as 'safe'
+          git config --global --add safe.directory /github/workspace
+
+      - name: 'tag: create (annotated)'
         if: ${{ !inputs.lightweight && !inputs.dryRun }}
         uses: rickstaa/action-create-tag@v1
         with:
           tag: ${{ inputs.label }}
           message: ${{ inputs.description }}
 
-      - name: 'tag: lightweight'
+      - name: 'tag: create (lightweight)'
         if: ${{ inputs.lightweight && !inputs.dryRun }}
         uses: hole19/git-tag-action@master
         env:
           TAG: ${{ inputs.label }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
 
   dry-run:
     if: ${{ inputs.dryRun }}
