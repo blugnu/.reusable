@@ -1,4 +1,6 @@
 name: 'job: create release'
+permissions:
+  contents: write # required to create tags and releases
 on:
   workflow_call:
     inputs:

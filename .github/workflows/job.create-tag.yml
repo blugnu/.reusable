@@ -1,4 +1,6 @@
 name: 'job: create tag'
+permissions:
+  contents: write # required to create tags and releases
 on:
   workflow_call:
     inputs:
@@ -43,6 +45,7 @@ jobs:
         env:
           TAG: ${{ inputs.label }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
 
   dry-run:
     if: ${{ inputs.dryRun }}
