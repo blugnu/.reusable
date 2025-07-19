@@ -11,44 +11,57 @@ on:
       isTagged:
         value: ${{ jobs.semver.outputs.isTagged }}
         description: 'true if the semver output is an existing tag; false if the semver output is a new version, yet to be tagged'
+
 jobs:
   semver:
-    name: 'semver'
+    name: 'semantic version'
     runs-on: ubuntu-latest
     outputs:
       semver: ${{ steps.gitlog.outputs.semver }}
       isTagged: ${{ steps.gitlog.outputs.isTagged }}
     steps:
-      - uses: actions/checkout@v4
+      - name: 'checkout'
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # required to have a log to analyse
 
-      - name: 'gitlog'
+      - name: 'analyse log'
         id: gitlog
         shell: bash --noprofile --norc {0}
         run: |
           # script to identify the semantic version from conventional commits in the git log and preview the release change log
 
+          echo "::notice::$(git version)"
+
           semver=""
           isTagged="false"
 
-          tags=$(git tag --sort=-creatordate)
+          tags=$(git tag --sort=-version:refname)
           if [[ -z "$tags" ]]; then
-            # no previous tag; this is the initial release but we must also
-            # check that the repo was cloned with a non-empty master branch
+            # no tags => no previous tag; this is the initial release but we must
+            # also check that the repo was cloned with a non-empty master branch
+
+            echo "::warning::no tags found"
 
             if [[ ! -z $(git log origin/master..HEAD --oneline | grep "fatal:ambiguous argument 'origin/master..HEAD'") ]]; then
               echo "::warning::${{ github.ref }} not parented on 'master'; did you forget to clone a non-empty master branch when initialising this repo?"
             fi
+
             log=$(git log --oneline)
           else
-            # get the most recent release semver tag
-            # and the log since that tag
-            tag=$(echo "$tags" | grep -m 1 -E "^[v]{0,1}(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+            echo "::group::tags"
+              echo "$tags"
+            echo "::endgroup::"
+
+            # get the most recent semver tag and the log since that tag
+
+            tag=$(echo "$tags" | grep -m 1 -E "^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
             log=$(git log $tag..HEAD --oneline)
           fi
+
           echo "::group::log"
             echo "$log"
+            [[ -n $tag ]] && echo ">> $tag"
           echo "::endgroup::"
 
           regex="^[v]{0,1}([0-9]+)\.([0-9]+)\.([0-9]+).*"
