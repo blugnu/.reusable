@@ -11,34 +11,25 @@ on:
         type: number
         default: 1
     outputs:
-      moduleName:
-        value: ${{ jobs.module.outputs.moduleName }}
-      goVersion:
-        value: ${{ jobs.module.outputs.goVersion }}
-      lintVersion:
-        value: ${{ jobs.module.outputs.lintVersion }}
-      usesGoReleaser:
-        value: ${{ jobs.module.outputs.usesGoReleaser }}
       isPublic:
-        value: ${{ jobs.module.outputs.isPublic }}
+        value: ${{ jobs.visibility.outputs.isPublic }}
+      moduleName:
+        value: ${{ jobs.module-info.outputs.moduleName }}
+      goVersion:
+        value: ${{ jobs.module-info.outputs.goVersion }}
+      lintVersion:
+        value: ${{ jobs.module-info.outputs.lintVersion }}
+      usesGoReleaser:
+        value: ${{ jobs.module-info.outputs.usesGoReleaser }}
 
 jobs:
-  module:
-    name: 'module info'
-    outputs:
-      moduleName: ${{ steps.go-mod.outputs.moduleName }}
-      goVersion: ${{ steps.go-mod.outputs.goVersion }}
-      lintVersion: ${{ steps.golangci-lint.outputs.lintVersion }}
-      usesGoReleaser: ${{ steps.go-releaser.outputs.configExists }}
-      isPublic: ${{ steps.repo.outputs.isPublic }}
+  visibility:
+    name: 'is public?'
     runs-on: ubuntu-latest
+    outputs:
+      isPublic: ${{ steps.repo.outputs.isPublic }}
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # get tags and branches for gitversion
-
-      - name: 'github: visibility'
+      - name: 'is public?'
         id: repo
         run: |
           OUTPUT=$(curl --header "Authorization: token ${{ github.token }}" https://api.github.com/repos/${{ github.repository }})
@@ -63,7 +54,21 @@ jobs:
             cat $GITHUB_OUTPUT
           echo "::endgroup::"
 
-      - name: 'go.mod: parse'
+  module-info:
+    name: 'module info'
+    outputs:
+      moduleName: ${{ steps.go-mod.outputs.moduleName }}
+      goVersion: ${{ steps.go-mod.outputs.goVersion }}
+      lintVersion: ${{ steps.golangci-lint.outputs.lintVersion }}
+      usesGoReleaser: ${{ steps.go-releaser.outputs.configExists }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: . # we only need go.mod and any configuration files (.golangci.yml etc) that are in the root of the repository
+
+      - name: 'module (go.mod)'
         id: go-mod
         shell: bash --noprofile --norc {0}
         run: |
@@ -98,7 +103,7 @@ jobs:
             cat $GITHUB_OUTPUT
           echo "::endgroup::"
 
-      - name: 'golangci-lint: version'
+      - name: 'golangci-lint'
         id: golangci-lint
         run: |
           # a script to determine the version of golangci-lint used in the project
@@ -144,7 +149,7 @@ jobs:
             cat $GITHUB_OUTPUT
           echo "::endgroup::"
 
-      - name: 'go releaser: config'
+      - name: 'go-releaser'
         id: go-releaser
         shell: bash --noprofile --norc {0}
         run: |

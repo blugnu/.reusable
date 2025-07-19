@@ -115,7 +115,6 @@ jobs:
         with:
           version: latest
 
-
       # if we get this far then we have a module which has passed basic hygiene
       # checks and is ready to run any tests
 
@@ -184,10 +183,6 @@ jobs:
       - tests # for sequencing; coveralls requires the coverprofile artefact uploaded by tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: 'artifact: download [coverprofile]'
         uses: actions/download-artifact@v4
         with:
