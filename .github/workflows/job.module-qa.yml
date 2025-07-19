@@ -183,12 +183,15 @@ jobs:
       - tests # for sequencing; coveralls requires the coverprofile artefact uploaded by tests
     runs-on: ubuntu-latest
     steps:
-      - name: 'artifact: download [coverprofile]'
+      - name: 'checkout'
+        uses: actions/checkout@v4
+
+      - name: 'download artifact [coverprofile]'
         uses: actions/download-artifact@v4
         with:
           name: coverprofile
 
-      - name: 'coveralls: send coverage'
+      - name: 'send coverage'
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: coverprofile
