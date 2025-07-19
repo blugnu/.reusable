@@ -23,10 +23,15 @@ jobs:
         with:
           name: coverprofile
 
-      - name: 'sonarcloud: sonar-project.properties'
+      - name: 'sonarcloud: check/create project properties'
         run: |
-          # a script that creates a sonar-project.properties file
-          
+          # a script that creates a sonar-project.properties file if required
+
+          [[ -f sonar-project.properties ]] && {
+            echo "::notice::sonar-project.properties already exists"
+            exit 0
+          }
+
           # project name:
           #  - module name with github.com/ prefix removed
           # project key:
