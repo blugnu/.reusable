@@ -23,6 +23,7 @@ on:
 
 jobs:
   create:
+    name: 'tag: create'
     if: ${{ !inputs.dryRun }}
     runs-on: ubuntu-latest
     permissions:
@@ -55,7 +56,7 @@ jobs:
   dry-run:
     if: ${{ inputs.dryRun }}
     runs-on: ubuntu-latest
-    name: 'dry run'
+    name: 'tag: dry run'
     steps:
       - name: 'tag: preview'
         run: |
@@ -73,4 +74,3 @@ jobs:
                   echo "${{ inputs.description }}"
               fi
           fi
-        
