@@ -76,7 +76,7 @@ jobs:
           cache: false # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
 
       # ensure that go.mod is tidy
-      - name: 'go: mod tidy'
+      - name: 'go mod tidy'
         id: tidy
         run: |
           # a script to determine whether 'go mod tidy' is required
@@ -96,20 +96,20 @@ jobs:
       #
       # the lintVersion output (string) from module-info will be set to 1 or 2 depending
       # on the detected version of golangci-lint to use
-      - name: 'go: golangci-lint version'
+      - name: 'lint: identify version (golangci-lint)'
         if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion != '1' && needs.module-info.outputs.lintVersion != '2'}}
         run: |
           echo "::warning::unsupported golangci-lint version"
           echo -e "## :warning: &nbsp; Module QA\n" >> $GITHUB_STEP_SUMMARY
           echo -e ":information_source: &nbsp; no action is configured for golangci-lint v${{ needs.module-info.outputs.lintVersion }}\n" >> $GITHUB_STEP_SUMMARY
 
-      - name: 'go: golangci-lint (v1)'
+      - name: 'lint: run v1 (golangci-lint)'
         if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion == '1'}}
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
 
-      - name: 'go: golangci-lint (v2)'
+      - name: 'lint: run v2 (golangci-lint)'
         if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion == '2'}}
         uses: golangci/golangci-lint-action@v8
         with:
@@ -119,7 +119,7 @@ jobs:
       # checks and is ready to run any tests
 
       # install test-report
-      - name: 'setup: test-report'
+      - name: 'install test-report'
         run: |
           # a script to download and run blugnu/test-report
 
@@ -149,7 +149,7 @@ jobs:
           echo "::endgroup::"
 
       # run tests
-      - name: 'go: test'
+      - name: 'go test'
         run: |
           go mod download
 
@@ -168,7 +168,7 @@ jobs:
             go test -v -coverprofile=coverprofile ./...
           fi
 
-      - name: 'artifact: upload [coverprofile]'
+      - name: 'upload [coverprofile] artifact'
         uses: actions/upload-artifact@v4
         with:
           name: coverprofile
