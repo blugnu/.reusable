@@ -28,7 +28,7 @@ jobs:
       serviceName: ${{ needs.qa.outputs.serviceName }}
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: 'setup: docker buildx'
       uses: docker/setup-buildx-action@v3

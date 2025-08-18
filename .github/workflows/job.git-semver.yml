@@ -21,7 +21,7 @@ jobs:
       isTagged: ${{ steps.gitlog.outputs.isTagged }}
     steps:
       - name: 'checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0 # required to have a log to analyse
 

@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # install go
       - name: 'go: install go ${{ needs.module-info.outputs.goVersion }}'
@@ -184,7 +184,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 'download artifact [coverprofile]'
         uses: actions/download-artifact@v4

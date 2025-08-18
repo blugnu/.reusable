@@ -24,7 +24,7 @@ jobs:
       CONFIG_VERSION: ${{ steps.config.outputs.VERSION }}
     steps:
       - name: 'checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # FUTURE: verify that specified tag exists
       # - name: 'release: check for tag'
@@ -84,7 +84,7 @@ jobs:
       contents: write
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # required for go-releaser to determine release notes from history
           fetch-depth: 0
@@ -138,7 +138,7 @@ jobs:
       - preflight
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 'release: dry run'
         run: |
