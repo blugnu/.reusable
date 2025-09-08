@@ -92,7 +92,7 @@ jobs:
       # install Go and download dependencies
       - name: 'go: setup ${{ inputs.goVersion }}'
         if: ${{ (inputs.goVersion != '') }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ inputs.goVersion }}
           # avoid "file exists" errors from tar
