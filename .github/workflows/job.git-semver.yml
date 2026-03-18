@@ -81,6 +81,7 @@ jobs:
             fixes=$(echo "$log"          | grep -E "^[0-9a-f]{7} (fix|fix\(.*\)): .+" -c)
             features=$(echo "$log"       | grep -E "^[0-9a-f]{7} (feat|feat\(.*\)): .+" -c)
             refactorings=$(echo "$log"   | grep -E "^[0-9a-f]{7} (refactor|refactor\(.*\)): .+" -c)
+            tests=$(echo "$log"          | grep -E "^[0-9a-f]{7} (test|test\(.*\)): .+" -c)
 
             echo "::group::conventional commits"
               echo "badRefactorings=$badRefactorings"
@@ -88,6 +89,7 @@ jobs:
               echo "fixes=$fixes"
               echo "features=$features"
               echo "refactorings=$refactorings"
+              echo "tests=$tests"
             echo "::endgroup::"
 
             if [[ $badRefactorings -gt 0 ]]; then
@@ -98,7 +100,7 @@ jobs:
 
             semver="?"
             if [[ -z $tag ]]; then
-              if [[ ($breaking -gt 0) || ($features -gt 0) || ($fixes -gt 0) ]]; then
+              if [[ ($breaking -gt 0) || ($features -gt 0) || ($fixes -gt 0) || ($tests -gt 0) || ($refactorings -gt 0) ]]; then
                 # significant commits identified and there is no prior tag; this will be the
                 # initial version (v0.1.0 by convention) regardless of the significance
                 # of the commits
@@ -121,7 +123,7 @@ jobs:
             elif [[ $features -gt 0 ]]; then
               minor=$((minor+1))
               patch=0
-            elif [[ $fixes -gt 0 || refactorings -gt 0 ]]; then
+            elif [[ ($fixes -gt 0) || ($refactorings -gt 0) || ($tests -gt 0) ]]; then
               patch=$((patch+1))
             else
               # no significant commits found but there is an existing release tag;
