@@ -25,6 +25,8 @@ on:
         value: ${{ jobs.semver.outputs.semver }}
       isTagged:
         value: ${{ jobs.semver.outputs.isTagged }}
+      serviceName:
+        value: "not-implemented" # this is a placeholder for now
 
 jobs:
   semver:
@@ -66,11 +68,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # install go
       - name: 'go: install go ${{ needs.module-info.outputs.goVersion }}'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ needs.module-info.outputs.goVersion }}
           cache: false # avoid "file exists" errors from tar: https://github.com/actions/setup-go/issues/403
@@ -105,13 +107,13 @@ jobs:
 
       - name: 'lint: run v1 (golangci-lint)'
         if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion == '1'}}
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
 
       - name: 'lint: run v2 (golangci-lint)'
         if: ${{ github.ref != 'refs/heads/master' && needs.module-info.outputs.lintVersion == '2'}}
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
 
@@ -169,7 +171,7 @@ jobs:
           fi
 
       - name: 'upload [coverprofile] artifact'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverprofile
           path: coverprofile
@@ -184,10 +186,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 'download artifact [coverprofile]'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: coverprofile
 

@@ -24,7 +24,7 @@ jobs:
       CONFIG_VERSION: ${{ steps.config.outputs.VERSION }}
     steps:
       - name: 'checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # FUTURE: verify that specified tag exists
       # - name: 'release: check for tag'
@@ -84,7 +84,7 @@ jobs:
       contents: write
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # required for go-releaser to determine release notes from history
           fetch-depth: 0
@@ -113,7 +113,10 @@ jobs:
           echo "::endgroup::"
 
       # create the release
-      - name: 'release: goreleaser (v5)'
+      #
+      # if the config version is 1, we must use the historical v5 action,
+      # otherwise we can use the latest (current v7)
+      - name: 'release: goreleaser (legacy, v5)'
         if: ${{ needs.preflight.outputs.CONFIG_VERSION == '1' }}
         uses: goreleaser/goreleaser-action@v5
         with:
@@ -121,9 +124,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GO_VERSION: ${{ steps.go.outputs.VERSION }}
-      - name: 'release: goreleaser (v6)'
+      - name: 'release: goreleaser'
         if: ${{ needs.preflight.outputs.CONFIG_VERSION == '2' }}
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           args: release --clean
         env:
@@ -138,7 +141,7 @@ jobs:
       - preflight
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 'release: dry run'
         run: |

@@ -64,13 +64,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # we only need go.mod and any configuration files (.golangci.yml etc)
           # that are in the root of the repository
           sparse-checkout: .
 
-      - name: 'module (go.mod)'
+      - name: 'module info (go.mod)'
         id: go-mod
         shell: bash --noprofile --norc {0}
         run: |
@@ -105,7 +105,7 @@ jobs:
             cat $GITHUB_OUTPUT
           echo "::endgroup::"
 
-      - name: 'golangci-lint'
+      - name: 'golangci-lint version'
         id: golangci-lint
         run: |
           # a script to determine the version of golangci-lint used in the project
@@ -151,7 +151,7 @@ jobs:
             cat $GITHUB_OUTPUT
           echo "::endgroup::"
 
-      - name: 'go-releaser'
+      - name: 'go-releaser config'
         id: go-releaser
         shell: bash --noprofile --norc {0}
         run: |

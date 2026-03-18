@@ -27,10 +27,11 @@ jobs:
     if: ${{ !inputs.dryRun }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write # required to create tags
+      contents: write   # required to create tags; this is also why actions are pinned to SHAs,
+                        # to avoid supply-chain attacks
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
@@ -41,14 +42,14 @@ jobs:
 
       - name: 'tag: create (annotated)'
         if: ${{ !inputs.lightweight && !inputs.dryRun }}
-        uses: rickstaa/action-create-tag@v1
+        uses: rickstaa/action-create-tag@a1c7777fcb2fee4f19b0f283ba888afa11678b72
         with:
           tag: ${{ inputs.label }}
           message: ${{ inputs.description }}
 
       - name: 'tag: create (lightweight)'
         if: ${{ inputs.lightweight && !inputs.dryRun }}
-        uses: hole19/git-tag-action@master
+        uses: hole19/git-tag-action@0b717b660aa3ac0154c5c5e02d6153642cc64966
         env:
           TAG: ${{ inputs.label }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

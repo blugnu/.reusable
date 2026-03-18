@@ -4,8 +4,6 @@ on:
     outputs:
       moduleName:
         value: ${{ jobs.qa.outputs.moduleName }}
-      ingressPath:
-        value: ${{ jobs.qa.outputs.ingressPath }}
       serviceName:
         value: ${{ jobs.qa.outputs.serviceName }}
       version:
@@ -27,32 +25,32 @@ jobs:
       version: ${{ needs.qa.outputs.semver }}
       serviceName: ${{ needs.qa.outputs.serviceName }}
     steps:
-    - name: checkout
-      uses: actions/checkout@v4
+      - name: checkout
+        uses: actions/checkout@v6
 
-    - name: 'setup: docker buildx'
-      uses: docker/setup-buildx-action@v3
+      - name: 'setup: docker buildx'
+        uses: docker/setup-buildx-action@v4
 
-    - name: 'docker: login'
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'docker: login'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 'docker: metadata'
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}
+      - name: 'docker: metadata'
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}
 
-    - name: 'docker: build and push'
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: .cicd/dockerfile
-        provenance: false # not currently supported by ghcr.io (creates spurious additional package versions)
-        push: true
-        tags: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}:${{ needs.qa.outputs.semver }}
-        labels: ${{ steps.meta.outputs.labels }}
+      - name: 'docker: build and push'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: .cicd/dockerfile
+          provenance: false # not currently supported by ghcr.io (creates spurious additional package versions)
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ needs.qa.outputs.serviceName }}:${{ needs.qa.outputs.semver }}
+          labels: ${{ steps.meta.outputs.labels }}
 
